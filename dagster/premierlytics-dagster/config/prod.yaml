@@ -1,0 +1,11 @@
+# config/prod.yaml
+
+storage:
+  minio:
+    bucket_bronze: "bronze"
+    bucket_silver: "silver"
+  duckdb:
+    path: "/data/duckdb/fpl.duckdb"
+
+logging:
+  level: INFO

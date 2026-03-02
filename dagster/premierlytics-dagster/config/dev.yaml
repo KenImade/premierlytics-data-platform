@@ -1,0 +1,11 @@
+# config/dev.yaml
+
+storage:
+  minio:
+    bucket_bronze: "dev-bronze"
+    bucket_silver: "dev-silver"
+  duckdb:
+    path: "/tmp/duckdb/dev_fpl.duckdb"
+
+logging:
+  level: DEBUG
