@@ -4,8 +4,8 @@ import json
 from premierlytics_dagster.helpers.download_csv import download_csv
 from premierlytics_dagster.helpers.data_report import data_report
 from premierlytics_dagster.defs.resources import MinioResource
-from .partitions import matches_partitions
-from .config import get_dataset_config
+from ..partitions import matches_partitions
+from ..config import get_dataset_config
 
 
 @dg.asset(partitions_def=matches_partitions)
@@ -249,6 +249,11 @@ def raw_fixtures_data(context: dg.AssetExecutionContext, minio: MinioResource):
 
     data_cfg = get_dataset_config(season, "fixtures")
 
+    AVAILABLE_SEASONS = ["2025-2026"]
+
+    if season not in AVAILABLE_SEASONS:
+        raise dg.SkipReason(f"No data available for season {season}, skipping.")
+
     url = data_cfg["url_template"].format(season=season, gameweek=gameweek)
 
     context.log.info(
@@ -259,7 +264,7 @@ def raw_fixtures_data(context: dg.AssetExecutionContext, minio: MinioResource):
 
     report = data_report(csv_text)
 
-    key = f"raw/{season}/gameweek_{gameweek}/player_gameweek_stats.csv"
+    key = f"raw/{season}/gameweek_{gameweek}/fixtures.csv"
 
     minio.put_object(bucket=minio.bucket, key=key, data=csv_text)
 

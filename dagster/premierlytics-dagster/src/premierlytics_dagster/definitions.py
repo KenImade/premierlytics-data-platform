@@ -1,8 +1,33 @@
-from pathlib import Path
+import dagster as dg
+from .defs.resources import MinioResource
+from .defs.raw.assets import (
+    raw_matches_data,
+    raw_playermatchstats_data,
+    raw_players_data,
+    raw_playerstats_data,
+    raw_teams_data,
+    raw_player_gameweek_stats_data,
+    raw_fixtures_data,
+)
 
-from dagster import definitions, load_from_defs_folder
+from .defs.transformation.assets import transformed_fixtures
 
-
-@definitions
-def defs():
-    return load_from_defs_folder(path_within_project=Path(__file__).parent)
+defs = dg.Definitions(
+    assets=[
+        raw_matches_data,
+        raw_playermatchstats_data,
+        raw_players_data,
+        raw_playerstats_data,
+        raw_teams_data,
+        raw_player_gameweek_stats_data,
+        raw_fixtures_data,
+        transformed_fixtures,
+    ],
+    resources={
+        "minio": MinioResource(
+            endpoint=dg.EnvVar("MINIO_ENDPOINT"),
+            access_key=dg.EnvVar("MINIO_ACCESS_KEY"),
+            secret_key=dg.EnvVar("MINIO_SECRET_KEY"),
+        )
+    },
+)

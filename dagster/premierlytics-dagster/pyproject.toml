@@ -4,7 +4,13 @@ requires-python = ">=3.10,<3.15"
 version = "0.1.0"
 dependencies = [
     "dagster==1.12.17",
+    "dagster-postgres>=0.28.17",
+    "httpx==0.28.1",
+    "minio>=7.2.20",
     "polars>=1.38.1",
+    "pyarrow>=23.0.1",
+    "pydantic>=2.12.5",
+    "typing>=3.10.0.0",
 ]
 
 [dependency-groups]
