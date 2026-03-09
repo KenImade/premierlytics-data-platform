@@ -38,34 +38,38 @@ SEASON_CONFIG: dict[str, dict[str, dict[str, Type[BaseModel]]]] = {
     },
     "2025-2026": {
         "matches": {
-            "url_template": BASE_URL + "{season}/By Gameweek/{gameweek}/matches.csv",
+            "url_template": BASE_URL
+            + "{season}/By Tournament/Premier League/{gameweek}/matches.csv",
             "schema": MatchesV2,
         },
         "playermatchstats": {
             "url_template": BASE_URL
-            + "{season}/By Gameweek/{gameweek}/playermatchstats.csv",
+            + "{season}/By Tournament/Premier League/{gameweek}/playermatchstats.csv",
             "schema": PlayerMatchStatsV2,
         },
         "players": {
-            "url_template": BASE_URL + "{season}/By Gameweek/{gameweek}/players.csv",
+            "url_template": BASE_URL
+            + "{season}/By Tournament/Premier League/{gameweek}/players.csv",
             "schema": PlayersV1,
         },
         "playerstats": {
             "url_template": BASE_URL
-            + "{season}/By Gameweek/{gameweek}/playerstats.csv",
+            + "{season}/By Tournament/Premier League/{gameweek}/playerstats.csv",
             "schema": PlayerStatsV2,
         },
         "teams": {
-            "url_template": BASE_URL + "{season}/By Gameweek/{gameweek}/teams.csv",
+            "url_template": BASE_URL
+            + "{season}/By Tournament/Premier League/{gameweek}/teams.csv",
             "schema": TeamsV2,
         },
         "player_gameweek_stats": {
             "url_template": BASE_URL
-            + "{season}/By Gameweek/{gameweek}/player_gameweek_stats.csv",
+            + "{season}/By Tournament/Premier League/{gameweek}/player_gameweek_stats.csv",
             "schema": PlayerGameweekStatsV1,
         },
         "fixtures": {
-            "url_template": BASE_URL + "{season}/By Gameweek/{gameweek}/fixtures.csv",
+            "url_template": BASE_URL
+            + "{season}/By Tournament/Premier League/{gameweek}/fixtures.csv",
             "schema": FixturesV1,
         },
     },

@@ -5,6 +5,7 @@ version = "0.1.0"
 dependencies = [
     "dagster==1.12.17",
     "dagster-postgres>=0.28.17",
+    "duckdb>=1.4.4",
     "httpx==0.28.1",
     "minio>=7.2.20",
     "polars>=1.38.1",

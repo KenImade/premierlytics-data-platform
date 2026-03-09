@@ -1,4 +1,5 @@
 import dagster as dg
+import duckdb
 from minio import Minio
 from minio.error import S3Error
 import io
@@ -40,6 +41,15 @@ class MinioResource(dg.ConfigurableResource):
             content_type="application/octet-stream",
         )
 
+    def get_parquet(self, bucket: str, key: str) -> bytes:
+        """Download a parquet object and return raw bytes."""
+        response = self._client().get_object(bucket_name=bucket, object_name=key)
+        try:
+            return response.read()
+        finally:
+            response.close()
+            response.release_conn()
+
     def get_object(self, bucket: str, key: str) -> str:
         """Download an object and return its content as a string."""
         response = self._client().get_object(bucket_name=bucket, object_name=key)
@@ -59,3 +69,10 @@ class MinioResource(dg.ConfigurableResource):
     def delete_object(self, bucket: str, key: str) -> None:
         """Delete a single object from a bucket."""
         self._client().remove_object(bucket_name=bucket, object_name=key)
+
+
+class DuckDBResource(dg.ConfigurableResource):
+    db_path: str = "/data/duckdb/premieryltics.db"
+
+    def connection(self):
+        return duckdb.connect(self.db_path)

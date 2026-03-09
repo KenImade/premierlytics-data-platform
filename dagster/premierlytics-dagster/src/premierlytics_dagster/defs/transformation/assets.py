@@ -34,7 +34,7 @@ def transformed_fixtures(context: dg.AssetExecutionContext, minio: MinioResource
 
     # Clean raw dataset
     cleaned_data = clean_csv(csv_data, schema)
-    context.log.info(f"Cleaned dataset")
+    context.log.info(f"Cleaned dataset using {schema.__name__} schema")
 
     # Validate dataset
     validated_data, invalid_data = validate_csv(cleaned_data, schema)
