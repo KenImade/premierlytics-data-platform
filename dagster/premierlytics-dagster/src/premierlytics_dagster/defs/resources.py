@@ -2,6 +2,7 @@ import dagster as dg
 import duckdb
 from minio import Minio
 from minio.error import S3Error
+from contextlib import contextmanager
 import io
 
 
@@ -72,7 +73,12 @@ class MinioResource(dg.ConfigurableResource):
 
 
 class DuckDBResource(dg.ConfigurableResource):
-    db_path: str = "/data/duckdb/premieryltics.db"
+    db_path: str = "/data/duckdb/premierlytics.duckdb"
 
+    @contextmanager
     def connection(self):
-        return duckdb.connect(self.db_path)
+        conn = duckdb.connect(self.db_path)
+        try:
+            yield conn
+        finally:
+            conn.close()

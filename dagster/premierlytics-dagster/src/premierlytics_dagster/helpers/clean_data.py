@@ -44,13 +44,18 @@ def clean_csv(csv_data: bytes, model: Type[BaseModel]) -> pl.DataFrame:
 
     # Drop columns not in schema
     schema_columns = list(type_mapping.keys())
-    df.select([col for col in schema_columns if col in df.columns])
+    df = df.select([col for col in schema_columns if col in df.columns])
 
     # Cast columns to correct types
-    cast_exprs = [
-        pl.col(col).cast(dtype, strict=False)
-        for col, dtype in type_mapping.items()
-        if col in df.columns
-    ]
+    cast_exprs = []
+    for col, dtype in type_mapping.items():
+        if col not in df.columns:
+            continue
+        if dtype == pl.Datetime:
+            cast_exprs.append(
+                pl.col(col).str.to_datetime(format="%Y-%m-%d %H:%M:%S", strict=False)
+            )
+        else:
+            cast_exprs.append(pl.col(col).cast(dtype, strict=False))
 
     return df.with_columns(cast_exprs)

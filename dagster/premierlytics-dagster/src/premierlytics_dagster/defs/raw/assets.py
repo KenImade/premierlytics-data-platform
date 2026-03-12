@@ -8,8 +8,8 @@ from ..partitions import matches_partitions
 from ..config import get_dataset_config
 
 
-@dg.asset(partitions_def=matches_partitions)
-def raw_matches_data(
+@dg.asset(partitions_def=matches_partitions, group_name="raw_data")
+def raw_matches(
     context: dg.AssetExecutionContext,
     minio: MinioResource,
 ):
@@ -49,8 +49,8 @@ def raw_matches_data(
     )
 
 
-@dg.asset(partitions_def=matches_partitions)
-def raw_playermatchstats_data(context: dg.AssetExecutionContext, minio: MinioResource):
+@dg.asset(partitions_def=matches_partitions, group_name="raw_data")
+def raw_playermatchstats(context: dg.AssetExecutionContext, minio: MinioResource):
     """Raw PlayerMatchStats CSV files"""
     partition: dg.MultiPartitionKey = context.partition_key  # type: ignore[assignment]
     season = partition.keys_by_dimension["season"]
@@ -86,8 +86,8 @@ def raw_playermatchstats_data(context: dg.AssetExecutionContext, minio: MinioRes
     )
 
 
-@dg.asset(partitions_def=matches_partitions)
-def raw_players_data(context: dg.AssetExecutionContext, minio: MinioResource):
+@dg.asset(partitions_def=matches_partitions, group_name="raw_data")
+def raw_players(context: dg.AssetExecutionContext, minio: MinioResource):
     """Raw Players CSV data"""
     partitions: dg.MultiPartitionKey = context.partition_key
     season = partitions.keys_by_dimension["season"]
@@ -126,8 +126,8 @@ def raw_players_data(context: dg.AssetExecutionContext, minio: MinioResource):
     )
 
 
-@dg.asset(partitions_def=matches_partitions)
-def raw_playerstats_data(context: dg.AssetExecutionContext, minio: MinioResource):
+@dg.asset(partitions_def=matches_partitions, group_name="raw_data")
+def raw_playerstats(context: dg.AssetExecutionContext, minio: MinioResource):
     """Raw PlayerStats CSV data"""
     partitions: dg.MultiplePartitionKey = context.partition_key
     season = partitions.keys_by_dimension["season"]
@@ -166,8 +166,8 @@ def raw_playerstats_data(context: dg.AssetExecutionContext, minio: MinioResource
     )
 
 
-@dg.asset(partitions_def=matches_partitions)
-def raw_teams_data(context: dg.AssetExecutionContext, minio: MinioResource):
+@dg.asset(partitions_def=matches_partitions, group_name="raw_data")
+def raw_teams(context: dg.AssetExecutionContext, minio: MinioResource):
     partitions: dg.MultiplePartitionKey = context.partition_key
     season = partitions.keys_by_dimension["season"]
     gameweek = partitions.keys_by_dimension["gameweek"]
@@ -203,10 +203,8 @@ def raw_teams_data(context: dg.AssetExecutionContext, minio: MinioResource):
     )
 
 
-@dg.asset(partitions_def=matches_partitions)
-def raw_player_gameweek_stats_data(
-    context: dg.AssetExecutionContext, minio: MinioResource
-):
+@dg.asset(partitions_def=matches_partitions, group_name="raw_data")
+def raw_player_gameweek_stats(context: dg.AssetExecutionContext, minio: MinioResource):
     partitions: dg.MultiplePartitionKey = context.partition_key
     season = partitions.keys_by_dimension["season"]
     gameweek = partitions.keys_by_dimension["gameweek"]
@@ -241,8 +239,8 @@ def raw_player_gameweek_stats_data(
     )
 
 
-@dg.asset(partitions_def=matches_partitions)
-def raw_fixtures_data(context: dg.AssetExecutionContext, minio: MinioResource):
+@dg.asset(partitions_def=matches_partitions, group_name="raw_data")
+def raw_fixtures(context: dg.AssetExecutionContext, minio: MinioResource):
     partitions: dg.MultiplePartitionKey = context.partition_key
     season = partitions.keys_by_dimension["season"]
     gameweek = partitions.keys_by_dimension["gameweek"]

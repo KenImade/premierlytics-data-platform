@@ -1,28 +1,43 @@
 import dagster as dg
 from .defs.resources import MinioResource, DuckDBResource
 from .defs.raw.assets import (
-    raw_matches_data,
-    raw_playermatchstats_data,
-    raw_players_data,
-    raw_playerstats_data,
-    raw_teams_data,
-    raw_player_gameweek_stats_data,
-    raw_fixtures_data,
+    raw_matches,
+    raw_playermatchstats,
+    raw_players,
+    raw_playerstats,
+    raw_teams,
+    raw_player_gameweek_stats,
+    raw_fixtures,
 )
 
-from .defs.transformation.assets import transformed_fixtures
-from .defs.loading.assets import loaded_fixtures
+from .defs.transformation.assets import (
+    transformed_fixtures,
+    transformed_matches,
+    transformed_teams,
+    transformed_player_gameweek_stats,
+    transformed_playermatchstats,
+    transformed_players,
+    transformed_playerstats,
+)
+from .defs.loading.assets import loaded_fixtures, loaded_matches
 
 defs = dg.Definitions(
     assets=[
-        raw_matches_data,
-        raw_playermatchstats_data,
-        raw_players_data,
-        raw_playerstats_data,
-        raw_teams_data,
-        raw_player_gameweek_stats_data,
-        raw_fixtures_data,
+        raw_matches,
+        raw_playermatchstats,
+        raw_players,
+        raw_playerstats,
+        raw_teams,
+        raw_player_gameweek_stats,
+        raw_fixtures,
         transformed_fixtures,
+        transformed_matches,
+        transformed_teams,
+        transformed_player_gameweek_stats,
+        transformed_players,
+        transformed_playerstats,
+        transformed_playermatchstats,
+        loaded_matches,
         loaded_fixtures,
     ],
     resources={
