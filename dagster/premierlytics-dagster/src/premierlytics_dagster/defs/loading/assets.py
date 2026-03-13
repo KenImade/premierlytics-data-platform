@@ -230,6 +230,57 @@ def loaded_playerstats(
 
 @dg.asset(
     partitions_def=matches_partitions,
+    deps=["transformed_teams"],
+    group_name="loaded_data",
+    op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
+)
+def loaded_teams(
+    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
+):
+    partitions: dg.MultiPartitionKey = context.partition_key
+    season = partitions.keys_by_dimension["season"]
+    gameweek = partitions.keys_by_dimension["gameweek"]
+
+    transformed_path = f"transformed/{season}/gameweek_{gameweek}/teams.parquet"
+    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+
+    # Load into DuckDB
+    df = pl.read_parquet(io.BytesIO(parquet_bytes))
+
+    # Add additional columns season, ingestion timestamp, etc.
+    df = df.with_columns(
+        [
+            pl.lit(str(season)).alias("season"),
+            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
+        ]
+    )
+
+    with duckdb.connection() as conn:
+        conn.execute(load_sql("create_teams.sql", __file__))
+
+        conn.execute(
+            """
+            DELETE FROM teams_bronze
+            WHERE season = ?
+        """,
+            [season],
+        )
+
+        columns = ", ".join(df.columns)
+        conn.execute(f"INSERT INTO teams_bronze ({columns}) SELECT {columns} FROM df")
+
+    context.add_output_metadata(
+        {
+            "season": season,
+            "gameweek": gameweek,
+            "rows_loaded": len(df),
+            "table": "teams_bronze",
+        }
+    )
+
+
+@dg.asset(
+    partitions_def=matches_partitions,
     deps=["transformed_fixtures"],
     group_name="loaded_data",
     op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
