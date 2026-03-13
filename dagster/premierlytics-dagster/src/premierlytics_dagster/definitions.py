@@ -26,6 +26,7 @@ from .defs.loading.assets import (
     loaded_players,
     loaded_playerstats,
     loaded_teams,
+    loaded_player_gameweek_stats,
 )
 
 defs = dg.Definitions(
@@ -50,6 +51,7 @@ defs = dg.Definitions(
         loaded_players,
         loaded_playerstats,
         loaded_teams,
+        loaded_player_gameweek_stats,
     ],
     resources={
         "minio": MinioResource(

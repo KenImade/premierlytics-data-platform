@@ -377,6 +377,7 @@ def transformed_player_gameweek_stats(
     transformed_path = (
         f"transformed/{season}/gameweek_{gameweek}/player_gameweek_stats.parquet"
     )
+
     buffer = io.BytesIO()
     validated_data.write_parquet(buffer)
     parquet_bytes = buffer.getvalue()

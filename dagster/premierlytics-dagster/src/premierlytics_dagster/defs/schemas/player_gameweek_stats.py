@@ -1,5 +1,7 @@
-from typing import Optional
-from pydantic import BaseModel, model_validator
+from typing import Optional, Literal
+from pydantic import BaseModel
+
+StatusType = Literal["a", "d", "i", "n", "s", "u"]
 
 
 class PlayerGameweekStatsV1(BaseModel):
@@ -7,7 +9,7 @@ class PlayerGameweekStatsV1(BaseModel):
     first_name: str
     second_name: str
     web_name: str
-    status: str
+    status: StatusType
 
     news: Optional[str] = None
     news_added: Optional[str] = None
@@ -18,11 +20,10 @@ class PlayerGameweekStatsV1(BaseModel):
 
     total_points: int
     event_points: int
-    points_per_game: float
+    points_per_game: Optional[float] = None
     selected_by_percent: float
     transfers_in: int
     transfers_out: int
-    transfers_balance: int
 
     minutes: int
     goals_scored: int
@@ -52,11 +53,3 @@ class PlayerGameweekStatsV1(BaseModel):
     clearances_blocks_interceptions: int
     recoveries: int
     defensive_contribution: int
-
-    @model_validator(mode="before")
-    @classmethod
-    def coerce_empty_strings(cls, values: dict) -> dict:
-        return {
-            k: None if isinstance(v, str) and v.strip() == "" else v
-            for k, v in values.items()
-        }
