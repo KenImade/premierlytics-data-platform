@@ -251,6 +251,13 @@ def transformed_playerstats(context: dg.AssetExecutionContext, minio: MinioResou
             f"{len(invalid_data)} rows failed verification and were quarantined"
         )
 
+    # Guard against fully quarantined partitions
+    if validated_data.is_empty():
+        raise dg.Failure(
+            description=f"All rows for {season} {gameweek} failed validation and were quarantined. Halting pipeline.",
+            metadata={"quarantined_path": quarantine_path},
+        )
+
     transformed_path = f"transformed/{season}/gameweek_{gameweek}/playerstats.parquet"
     buffer = io.BytesIO()
     validated_data.write_parquet(buffer)
