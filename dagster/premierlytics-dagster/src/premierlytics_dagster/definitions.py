@@ -19,7 +19,11 @@ from .defs.transformation.assets import (
     transformed_players,
     transformed_playerstats,
 )
-from .defs.loading.assets import loaded_fixtures, loaded_matches
+from .defs.loading.assets import (
+    loaded_fixtures,
+    loaded_matches,
+    loaded_playermatchstats,
+)
 
 defs = dg.Definitions(
     assets=[
@@ -39,6 +43,7 @@ defs = dg.Definitions(
         transformed_playermatchstats,
         loaded_matches,
         loaded_fixtures,
+        loaded_playermatchstats,
     ],
     resources={
         "minio": MinioResource(
