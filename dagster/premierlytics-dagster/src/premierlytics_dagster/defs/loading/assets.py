@@ -118,6 +118,57 @@ def loaded_playermatchstats(
 
 @dg.asset(
     partitions_def=matches_partitions,
+    deps=["transformed_players"],
+    group_name="loaded_data",
+)
+def loaded_players(
+    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
+):
+    partitions: dg.MultiPartitionKey = context.partition_key
+    season = partitions.keys_by_dimension["season"]
+    gameweek = partitions.keys_by_dimension["gameweek"]
+
+    transformed_data_path = f"transformed/{season}/gameweek_{gameweek}/players.parquet"
+
+    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_data_path)
+
+    df = pl.read_parquet(io.BytesIO(parquet_bytes))
+
+    df = df.with_columns(
+        [
+            pl.lit(str(season)).alias("season"),
+            pl.lit(int(gameweek.replace("GW", ""))).alias("gameweek"),
+            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
+        ]
+    )
+
+    with duckdb.connection() as conn:
+        conn.execute(load_sql("create_players.sql", __file__))
+
+        conn.execute(
+            """
+            DELETE FROM players_bronze
+            WHERE season = ? AND gameweek = ?
+        """,
+            [season, int(gameweek.replace("GW", ""))],
+        )
+
+        columns = ", ".join(df.columns)
+
+        conn.execute(f"INSERT INTO players_bronze ({columns}) SELECT {columns} FROM df")
+
+    context.add_output_metadata(
+        {
+            "season": season,
+            "gameweek": gameweek,
+            "rows_loaded": len(df),
+            "table": "players_bronze",
+        }
+    )
+
+
+@dg.asset(
+    partitions_def=matches_partitions,
     deps=["transformed_fixtures"],
     group_name="loaded_data",
 )
