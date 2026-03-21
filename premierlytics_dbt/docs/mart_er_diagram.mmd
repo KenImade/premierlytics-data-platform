@@ -1,0 +1,42 @@
+erDiagram
+
+    fact_match_events {
+
+    }
+
+    fact_player_events {
+
+    }
+
+    fact_team_events {
+
+    }
+
+    fact_gameweek_events {
+
+    }
+
+    fact_season_events {
+        
+    }
+
+    dim_player {
+        int player_id PK
+        string player_role
+        string player_status
+    }
+
+    dim_gameweek {
+        int gameweek_id PK
+        int gameweek
+    }
+
+    dim_role {
+        int role_id PK
+        string role
+    }
+
+    dim_status {
+        int status_id PK
+        string status
+    }

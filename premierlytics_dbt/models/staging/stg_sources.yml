@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: premierlytics
+    schema: main
+    tables:
+      - name: matches_bronze
+      - name: players_bronze
+      - name: playermatchstats_bronze
+      - name: playerstats_bronze
+      - name: fixtures_bronze
+      - name: teams_bronze
+      - name: player_gameweek_stats_bronze
