@@ -1,5 +1,7 @@
 import dagster as dg
+from dagster_dbt import DbtCliResource
 from .defs.resources import MinioResource, DuckDBResource
+from .defs.dbt.assets import premierlytics_dbt_assets, dbt_project
 from .defs.raw.assets import (
     raw_matches,
     raw_playermatchstats,
@@ -52,6 +54,7 @@ defs = dg.Definitions(
         loaded_playerstats,
         loaded_teams,
         loaded_player_gameweek_stats,
+        premierlytics_dbt_assets,
     ],
     resources={
         "minio": MinioResource(
@@ -60,5 +63,9 @@ defs = dg.Definitions(
             secret_key=dg.EnvVar("MINIO_SECRET_KEY"),
         ),
         "duckdb": DuckDBResource(),
+        "dbt": DbtCliResource(
+            project_dir=dbt_project,
+            profiles_dir=dbt_project.profiles_dir,
+        ),
     },
 )

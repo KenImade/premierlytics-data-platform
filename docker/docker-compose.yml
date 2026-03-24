@@ -21,6 +21,10 @@ services:
       dockerfile: ./docker/dagster/Dockerfile_user_code
     container_name: dagster_user_code
     image: dagster_user_code_image
+    volumes:
+      - duckdb_data:/data/duckdb
+      - ../dagster/premierlytics-dagster/src:/opt/dagster/app/src
+      - ../premierlytics_dbt:/opt/dagster/dbt
     restart: always
     env_file:
       - ../.env.dev
@@ -28,7 +32,7 @@ services:
       - premierlytics_nw
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 4000 || exit 1"]
-      interval: 30s
+      interval: 40s
       timeout: 10s
       retries: 3
 
@@ -91,6 +95,7 @@ services:
   minio:
     image: minio/minio
     container_name: minio
+    command: server /data --console-address ':9001'
     env_file:
       - ../.env.dev
     ports:
@@ -102,17 +107,49 @@ services:
       - minio_data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 20s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio_init:
+    image: minio/mc
+    container_name: minio_init
+    env_file:
+      - ../.env.dev
+    networks:
+      - premierlytics_nw
+    depends_on:
+      minio:
+        condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      minio server /data --console-address ':9001' &
-      sleep 5;
-      mc alias set maestro http://localhost:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD;
-      mc mb --ignore-existing maestro/local-lakehouse;
-      tail -f /dev/null
+      mc alias set maestro http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD;
+      mc mb --ignore-existing maestro/premierlytics-dev-bucket;
+      exit 0;
       "
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: cloudbeaver
+    ports:
+      - "8978:8978"
+    volumes:
+      - duckdb_data:/data/duckdb
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
+    networks:
+      - premierlytics_nw
+    depends_on:
+      - duckdb_init
+      - dagster_user_code
+  
+  duckdb_init:
+    image: python:3.11-slim
+    user: root
+    volumes:
+      - duckdb_data:/data/duckdb
+      - ./duckdb/duckdb_init.py:/app/duckdb_init.py
+    command: bash -c "pip install duckdb --quiet && python /app/duckdb_init.py"
+    networks:
+      - premierlytics_nw
 
 networks:
   premierlytics_nw:
@@ -125,3 +162,6 @@ volumes:
   dagster_io:
   dagster_storage:
   dagster_compute_logs:
+  duckdb_data:
+  metabase_data:
+  cloudbeaver_data:

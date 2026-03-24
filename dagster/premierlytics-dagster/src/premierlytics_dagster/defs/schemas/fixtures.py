@@ -1,12 +1,11 @@
 from typing import Optional
-from datetime import datetime
 from pydantic import BaseModel
 
 
 class FixturesV1(BaseModel):
     # Always present
     gameweek: float
-    kickoff_time: datetime
+    kickoff_time: str
     home_team: float
     away_team: float
     home_team_elo: float

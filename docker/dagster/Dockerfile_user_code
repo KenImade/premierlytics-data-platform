@@ -8,7 +8,6 @@ ENV PYTHONUNBUFFERED=1
 # Add code location code
 WORKDIR /opt/dagster/app
 
-COPY dagster/premierlytics-dagster/config /opt/dagster/app/config
 COPY dagster/premierlytics-dagster/pyproject.toml /opt/dagster/app/pyproject.toml
 COPY dagster/premierlytics-dagster/uv.lock /opt/dagster/app/uv.lock
 COPY dagster/premierlytics-dagster/src /opt/dagster/app/src
@@ -21,6 +20,11 @@ ENV PATH="/opt/dagster/app/.venv/bin:$PATH"
 RUN uv pip install --system -e ".[dev]"
 
 # RUN uv sync --locked --bin-dir /usr/local/bin
+
+RUN pip install dbt-duckdb dagster-dbt
+COPY premierlytics_dbt /opt/dagster/dbt
+COPY dagster/premierlytics-dagster/src/premierlytics_dagster/defs/dbt/profiles.yml /opt/dagster/dbt/profiles.yml
+RUN cd /opt/dagster/dbt && dbt deps && dbt parse
 
 # Run dagster code server on port 4000
 EXPOSE 4000

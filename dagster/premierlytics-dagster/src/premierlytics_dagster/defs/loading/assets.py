@@ -2,6 +2,7 @@ import dagster as dg
 import io
 import polars as pl
 import datetime
+from minio.error import S3Error
 
 from ..partitions import matches_partitions
 from ..resources import MinioResource, DuckDBResource
@@ -23,7 +24,15 @@ def loaded_matches(
     gameweek = partitions.keys_by_dimension["gameweek"]
 
     transformed_path = f"transformed/{season}/gameweek_{gameweek}/matches.parquet"
-    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+
+    try:
+        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            return dg.SkipReason(
+                f"No fixtures data found for {season} {gameweek}, skipping."
+            )
+        raise
 
     df = pl.read_parquet(io.BytesIO(parquet_bytes))
 
@@ -78,7 +87,15 @@ def loaded_playermatchstats(
     transformed_path = (
         f"transformed/{season}/gameweek_{gameweek}/playermatchstats.parquet"
     )
-    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+
+    try:
+        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            return dg.SkipReason(
+                f"No fixtures data found for {season} {gameweek}, skipping."
+            )
+        raise
 
     # Load into DuckDB
     df = pl.read_parquet(io.BytesIO(parquet_bytes))
@@ -131,9 +148,16 @@ def loaded_players(
     season = partitions.keys_by_dimension["season"]
     gameweek = partitions.keys_by_dimension["gameweek"]
 
-    transformed_data_path = f"transformed/{season}/gameweek_{gameweek}/players.parquet"
+    transformed_path = f"transformed/{season}/gameweek_{gameweek}/players.parquet"
 
-    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_data_path)
+    try:
+        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            return dg.SkipReason(
+                f"No fixtures data found for {season} {gameweek}, skipping."
+            )
+        raise
 
     df = pl.read_parquet(io.BytesIO(parquet_bytes))
 
@@ -183,11 +207,16 @@ def loaded_playerstats(
     season = partitions.keys_by_dimension["season"]
     gameweek = partitions.keys_by_dimension["gameweek"]
 
-    transformed_data_path = (
-        f"transformed/{season}/gameweek_{gameweek}/playerstats.parquet"
-    )
+    transformed_path = f"transformed/{season}/gameweek_{gameweek}/playerstats.parquet"
 
-    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_data_path)
+    try:
+        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            return dg.SkipReason(
+                f"No fixtures data found for {season} {gameweek}, skipping."
+            )
+        raise
 
     df = pl.read_parquet(io.BytesIO(parquet_bytes))
 
@@ -242,7 +271,15 @@ def loaded_teams(
     gameweek = partitions.keys_by_dimension["gameweek"]
 
     transformed_path = f"transformed/{season}/gameweek_{gameweek}/teams.parquet"
-    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+
+    try:
+        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            return dg.SkipReason(
+                f"No fixtures data found for {season} {gameweek}, skipping."
+            )
+        raise
 
     # Load into DuckDB
     df = pl.read_parquet(io.BytesIO(parquet_bytes))
@@ -295,7 +332,15 @@ def loaded_player_gameweek_stats(
     transformed_path = (
         f"transformed/{season}/gameweek_{gameweek}/player_gameweek_stats.parquet"
     )
-    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+
+    try:
+        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            return dg.SkipReason(
+                f"No fixtures data found for {season} {gameweek}, skipping."
+            )
+        raise
 
     # Load into DuckDB
     df = pl.read_parquet(io.BytesIO(parquet_bytes))
@@ -350,7 +395,15 @@ def loaded_fixtures(
 
     # Read parquet from MinIO
     transformed_path = f"transformed/{season}/gameweek_{gameweek}/fixtures.parquet"
-    parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+
+    try:
+        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
+    except S3Error as e:
+        if e.code == "NoSuchKey":
+            return dg.SkipReason(
+                f"No fixtures data found for {season} {gameweek}, skipping."
+            )
+        raise
 
     # Load into DuckDB
     df = pl.read_parquet(io.BytesIO(parquet_bytes))

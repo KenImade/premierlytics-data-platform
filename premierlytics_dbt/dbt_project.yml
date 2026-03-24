@@ -35,9 +35,31 @@ models:
     staging:
       +schema: staging
       +materialized: view
+      +meta:
+        dagster:
+          group: staging
+    intermediate:
+      +schema: intermediate
+      +materialized: table
+      +meta:
+        dagster:
+          group: intermediate
+    dimensions:
+      +schema: dimensions
+      +materialized: table
+      +meta:
+        dagster:
+          group: dimensions
+    facts:
+      +schema: facts
+      +materialized: table
+      +meta:
+        dagster:
+          group: facts
     marts:
       +schema: marts
       +materialized: table
-    ml_features:
-      +schema: ml_features
-      +materialized: table
+      +meta:
+        dagster:
+          group: marts
+

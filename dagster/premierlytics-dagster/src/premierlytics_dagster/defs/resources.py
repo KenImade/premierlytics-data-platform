@@ -1,7 +1,6 @@
 import dagster as dg
 import duckdb
 from minio import Minio
-from minio.error import S3Error
 from contextlib import contextmanager
 import io
 
