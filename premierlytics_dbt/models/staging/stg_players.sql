@@ -1,5 +1,9 @@
 with source as (
     select * from {{ source('premierlytics', 'players_bronze') }}
+    qualify row_number() over (
+        partition by player_id, season, gameweek
+        order by gameweek
+    ) = 1
 ),
 
 cleaned as (

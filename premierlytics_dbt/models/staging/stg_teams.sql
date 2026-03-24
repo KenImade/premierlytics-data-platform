@@ -1,5 +1,11 @@
 with source as (
-    select * from {{ source('premierlytics', 'teams_bronze') }}
+    select 
+        * 
+    from {{ source('premierlytics', 'teams_bronze') }}
+    qualify row_number() over (
+        partition by code, id, season
+        order by season
+    ) = 1
 ),
 
 cleaned as (
