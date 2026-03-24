@@ -1,0 +1,359 @@
+version: 2
+
+models:
+  - name: int_match_team_unpivoted
+    description: >
+      Unpivots the wide home/away match statistics from staging into a single
+      row per team per match. Each match produces exactly two rows — one for the
+      home team and one for the away team — with an `is_home` flag and a unified
+      set of performance columns. Sources from both `stg_matches` and `stg_fixtures`,
+      deduplicating and preferring the more complete record where columns overlap.
+      This is the primary input for `fact_match_team_performance`.
+    columns:
+      - name: match_id
+        description: Unique identifier for the match, sourced from the FPL/FotMob data.
+        tests:
+          - not_null
+      - name: team_name
+        description: >
+          The name of the team for this row. Derived from `home_team` or `away_team`
+          depending on the unpivot side.
+        tests:
+          - not_null
+      - name: opponent_name
+        description: >
+          The name of the opposing team. Inverse of `team_name` for the same match.
+        tests:
+          - not_null
+      - name: is_home
+        description: >
+          Boolean flag indicating whether this row represents the home team (true)
+          or away team (false) in the match.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: season
+        description: Season identifier (e.g. '2024-2025').
+        tests:
+          - not_null
+      - name: gameweek
+        description: Gameweek number within the season.
+        tests:
+          - not_null
+      - name: kickoff_time
+        description: Timestamp of the match kickoff.
+      - name: match_url
+        description: URL to the match detail page on the source platform.
+      - name: fotmob_id
+        description: FotMob match identifier for cross-referencing with FotMob data.
+      - name: is_finished
+        description: Whether the match has concluded.
+      - name: is_stats_processed
+        description: Whether the match-level statistics have been processed by the source.
+      - name: is_player_stats_processed
+        description: Whether player-level statistics for this match have been processed.
+      - name: team_elo
+        description: Elo rating of this team going into the match.
+      - name: opponent_elo
+        description: Elo rating of the opposing team going into the match.
+      - name: score
+        description: Goals scored by this team in the match.
+      - name: opponent_score
+        description: Goals scored by the opposing team in the match.
+      - name: possession
+        description: Possession percentage for this team.
+      - name: xg
+        description: Total expected goals (xG) for this team.
+      - name: xg_open_play
+        description: Expected goals from open play situations.
+      - name: xg_set_play
+        description: Expected goals from set play situations.
+      - name: non_penalty_xg
+        description: Expected goals excluding penalties.
+      - name: xgot
+        description: Expected goals on target (xGOT) for this team.
+      - name: total_shots
+        description: Total number of shots attempted.
+      - name: shots_on_target
+        description: Number of shots that were on target.
+      - name: shots_off_target
+        description: Number of shots that were off target.
+      - name: blocked_shots
+        description: Number of shots that were blocked by the opposition.
+      - name: shots_inside_box
+        description: Number of shots taken from inside the penalty area.
+      - name: shots_outside_box
+        description: Number of shots taken from outside the penalty area.
+      - name: big_chances
+        description: Number of big chances (clear goal-scoring opportunities) created.
+      - name: big_chances_missed
+        description: Number of big chances that were not converted.
+      - name: hit_woodwork
+        description: Number of times this team hit the woodwork.
+      - name: passes
+        description: Total number of passes attempted.
+      - name: accurate_passes
+        description: Number of passes that reached a teammate.
+      - name: accurate_passes_pct
+        description: Percentage of passes that were accurate.
+      - name: own_half_passes
+        description: Number of passes completed in the team's own half.
+      - name: opposition_half_passes
+        description: Number of passes completed in the opposition's half.
+      - name: accurate_long_balls
+        description: Number of accurate long ball passes.
+      - name: accurate_long_balls_pct
+        description: Percentage of long ball passes that were accurate.
+      - name: accurate_crosses
+        description: Number of accurate crosses delivered.
+      - name: accurate_crosses_pct
+        description: Percentage of crosses that were accurate.
+      - name: corners
+        description: Number of corner kicks taken.
+      - name: throws
+        description: Number of throw-ins taken.
+      - name: touches_in_opposition_box
+        description: Number of touches inside the opposition penalty area.
+      - name: offsides
+        description: Number of offside calls against this team.
+      - name: fouls_committed
+        description: Number of fouls committed by this team.
+      - name: yellow_cards
+        description: Number of yellow cards received.
+      - name: red_cards
+        description: Number of red cards received.
+      - name: tackles_won
+        description: Number of tackles successfully won.
+      - name: tackles_won_pct
+        description: Percentage of attempted tackles that were won.
+      - name: interceptions
+        description: Number of interceptions made.
+      - name: blocks
+        description: Number of shots or passes blocked.
+      - name: clearances
+        description: Number of defensive clearances.
+      - name: keeper_saves
+        description: Number of saves made by the goalkeeper.
+      - name: duels_won
+        description: Total number of duels won (ground + aerial).
+      - name: ground_duels_won
+        description: Number of ground-level duels won.
+      - name: ground_duels_won_pct
+        description: Percentage of ground duels won.
+      - name: aerial_duels_won
+        description: Number of aerial duels won.
+      - name: aerial_duels_won_pct
+        description: Percentage of aerial duels won.
+      - name: successful_dribbles
+        description: Number of successful dribbles completed.
+      - name: successful_dribbles_pct
+        description: Percentage of attempted dribbles that were successful.
+      - name: ingested_at
+        description: Timestamp of when the source record was ingested into the bronze layer.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_id
+              - team_name
+
+  - name: int_player_team_history
+    description: >
+      Builds a slowly changing dimension (SCD Type 2) history of each player's
+      team assignment and position across gameweeks and seasons. Each row represents
+      a continuous period where a player held the same team and position. When a
+      player transfers or gets reclassified positionally, the current record closes
+      (`gameweek_effective_to` is set) and a new record opens. Sources from `stg_players`.
+      This is the primary input for `dim_player`.
+    columns:
+      - name: player_id
+        description: >
+          Durable business key for the player, consistent across seasons.
+          Sourced from the FPL API player identifier.
+        tests:
+          - not_null
+      - name: first_name
+        description: Player's first name.
+        tests:
+          - not_null
+      - name: second_name
+        description: Player's surname.
+        tests:
+          - not_null
+      - name: display_name
+        description: >
+          The official FPL display name (web_name). This is the short name
+          shown in the FPL interface (e.g. 'Salah', 'Haaland').
+        tests:
+          - not_null
+      - name: position
+        description: >
+          The player's position as classified by FPL. One of: Goalkeeper,
+          Defender, Midfielder, Forward, or Manager. 'Unknown' values from
+          the source are mapped to 'Manager' in staging.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments: 
+                values: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Manager']
+      - name: team_code
+        description: >
+          The FPL team code the player is assigned to during this period.
+          Used as a business key to join to `dim_team`.
+        tests:
+          - not_null
+      - name: season
+        description: Season identifier for this record (e.g. '2024-2025').
+        tests:
+          - not_null
+      - name: gameweek_effective_from
+        description: >
+          The first gameweek (inclusive) in which this team/position assignment
+          was active. For the first record of a season, this is typically 1.
+        tests:
+          - not_null
+      - name: gameweek_effective_to
+        description: >
+          The last gameweek (inclusive) in which this team/position assignment
+          was active. NULL for the currently active record within the current season.
+      - name: is_current
+        description: >
+          Boolean flag indicating whether this is the player's most recent
+          (currently active) team/position assignment.
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - player_id
+              - season
+              - gameweek_effective_from
+
+  - name: int_team_season_spine
+    description: >
+      Generates one row per team per season they appeared in the Premier League.
+      This handles promotion, relegation, and re-entry — a team that was relegated
+      in 2022-23 has no row for 2023-24 but reappears in 2024-25 if promoted.
+      Sources from `stg_teams` and enriches with strength ratings that are
+      season-specific. This is the primary input for `dim_team`.
+    columns:
+      - name: team_id
+        description: >
+          FPL team identifier. Durable business key that persists across seasons
+          for the same club.
+        tests:
+          - not_null
+      - name: team_code
+        description: >
+          FPL team code. Another durable business key, used in player-team
+          relationships.
+        tests:
+          - not_null
+      - name: name
+        description: Full team name (e.g. 'Arsenal', 'Manchester City').
+        tests:
+          - not_null
+      - name: short_name
+        description: >
+          Three-letter abbreviated team name used in the FPL interface
+          (e.g. 'ARS', 'MCI').
+        tests:
+          - not_null
+      - name: season
+        description: Season identifier (e.g. '2024-25').
+        tests:
+          - not_null
+      - name: strength
+        description: FPL overall strength rating for this team in this season.
+      - name: strength_overall_home
+        description: FPL overall strength rating when playing at home.
+      - name: strength_overall_away
+        description: FPL overall strength rating when playing away.
+      - name: strength_attack_home
+        description: FPL attacking strength rating at home.
+      - name: strength_attack_away
+        description: FPL attacking strength rating away.
+      - name: strength_defence_home
+        description: FPL defensive strength rating at home.
+      - name: strength_defence_away
+        description: FPL defensive strength rating away.
+      - name: pulse_id
+        description: Pulse ID used by the Premier League platform.
+      - name: fotmob_name
+        description: >
+          Team name as it appears in FotMob, used for cross-referencing
+          with FotMob-sourced data (e.g. player match stats).
+      - name: is_current
+        description: >
+          Boolean flag indicating whether this team-season record is from
+          the current season. Used for convenient filtering.
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - team_id
+              - season
+ 
+  - name: int_gameweek_spine
+    description: >
+      Generates one row per gameweek per season, creating a clean time spine
+      for the gameweek dimension. Derived from the distinct gameweek/season
+      combinations present in the staging data. This is the primary input
+      for `dim_gameweek`.
+    columns:
+      - name: gameweek_number
+        description: >
+          The gameweek number within the season (typically 1-38 for a
+          standard Premier League season).
+        tests:
+          - not_null
+      - name: season
+        description: Season identifier (e.g. '2024-25').
+        tests:
+          - not_null
+      - name: is_current
+        description: >
+          Boolean flag indicating whether this is the current gameweek
+          in the current season. Only one row across the entire table
+          should have this set to true.
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - gameweek_number
+              - season
+ 
+  - name: int_season_spine
+    description: >
+      Generates one row per distinct season present in the data. Provides
+      the base for `dim_season` with a clean season label and currency flag.
+      Derived from the distinct season values across all staging models.
+    columns:
+      - name: season_id
+        description: >
+          The season identifier string, used as both the primary key and
+          human-readable label (e.g. '2024-25').
+        tests:
+          - not_null
+          - unique
+      - name: season_label
+        description: >
+          A more descriptive label for the season, typically in the format
+          '2024/25 Season' for display purposes.
+        tests:
+          - not_null
+          - unique
+      - name: is_current
+        description: >
+          Boolean flag indicating whether this is the current active season.
+          Exactly one row should have this set to true.
+        tests:
+          - not_null
+ 
