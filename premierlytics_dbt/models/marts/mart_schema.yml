@@ -1,0 +1,89 @@
+version: 2
+
+models:
+  - name: mart_team_gameweek_summary
+    description: >
+      Aggregated performance metrics for each team per gameweek. 
+      Handles double gameweeks by summing stats across all matches played in that window.
+    columns:
+      - name: team_sk
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_team')
+                field: team_sk
+      - name: gameweek_sk
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_gameweek')
+                field: gameweek_sk
+
+  - name: mart_team_season_summary
+    description: >
+      Final season-long standings and performance metrics. 
+      Includes league position based on standard PL tie-breaking rules.
+    columns:
+      - name: team_sk
+        tests:
+          - not_null
+      - name: league_position
+        description: "Rank based on points, then goal difference, then goals for."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 20
+
+  - name: mart_player_season_summary
+    description: >
+      Comprehensive season-long statistics for players. This model combines 
+      on-pitch performance (FotMob) with player/team dimensions.
+    columns:
+      - name: player_sk
+        description: "Surrogate key for the player-team-period."
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_player')
+                field: player_sk
+      - name: season_sk
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_season')
+                field: season_sk
+      - name: total_minutes
+        description: "Total minutes played across the season."
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 4000 # Safety check for 38-game season + stoppage
+      - name: goals_per_90
+        description: "Goals scored normalized to 90 minutes of play."
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+      - name: duel_win_rate_pct
+        description: "Percentage of total duels won."
+        tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 100
+      - name: position
+        description: "FPL player position."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Manager']
+      - name: total_goals_prevented
+        description: "Goalkeeper metric: xGOT faced minus goals conceded."
