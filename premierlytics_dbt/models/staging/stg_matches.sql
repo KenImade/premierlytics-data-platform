@@ -38,6 +38,7 @@ cleaned as (
 		away_blocked_shots,
 		home_shots_inside_box,
 		away_shots_inside_box,
+		home_shots_outside_box,
 		away_shots_outside_box,
 		home_big_chances,
 		away_big_chances,
