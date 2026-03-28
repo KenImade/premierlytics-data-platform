@@ -21,11 +21,6 @@ class RetryConfig(Config):
     delay_seconds: float = 1.0
 
 
-class DownloadConfig(Config):
-    url: str
-    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
-
-
 def build_retry_policy(config: RetryConfig) -> RetryPolicy:
     return RetryPolicy(
         max_retries=config.max_retries,
@@ -35,33 +30,33 @@ def build_retry_policy(config: RetryConfig) -> RetryPolicy:
     )
 
 
-def download_csv(config: DownloadConfig) -> str:
+def download_csv(url: str, timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS) -> str:
     """
     Retrieves a CSV file from a specified HTTPS URL.
 
     Raises DownloadError on failure, allowing Dagster's RetryPolicy
     to handle retries.
     """
-    logger.info("Downloading CSV from: %s", config.url)
+    logger.info("Downloading CSV from: %s", url)
     try:
-        with httpx.Client(timeout=config.timeout_seconds) as client:
-            response = client.get(config.url)
+        with httpx.Client(timeout=timeout_seconds) as client:
+            response = client.get(url)
             response.raise_for_status()
             content = response.text
     except httpx.HTTPError as e:
-        logger.error("Download failed from %s: %s", config.url, e)
-        raise DownloadError(config.url, e) from e
+        logger.error("Download failed from %s: %s", url, e)
+        raise DownloadError(url, e) from e
 
     content_type = response.headers.get("content-type", "")
     if "text/csv" not in content_type and "text/plain" not in content_type:
-        logger.warning("Unexpected content-type '%s' from %s", content_type, config.url)
+        logger.warning("Unexpected content-type '%s' from %s", content_type, url)
 
     first_line = content.split("\n", 1)[0]
     if "<html" in first_line.lower() or "<!" in first_line.lower():
         raise DownloadError(
-            config.url,
+            url,
             ValueError(f"Response appears to be HTML, not CSV: {first_line[:100]}"),
         )
 
-    logger.info("Downloaded %s characters from %s", len(content), config.url)
+    logger.info("Downloaded %s characters from %s", len(content), url)
     return content
