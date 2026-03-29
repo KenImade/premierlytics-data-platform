@@ -1,0 +1,334 @@
+version: 2
+
+models:
+  - name: dim_season
+    description: >
+      Dimensional table containing one row per distinct season in the dataset.
+      Provides the season surrogate key used as a foreign key across the star schema.
+    columns:
+      - name: season_sk
+        description: Surrogate key uniquely identifying each season.
+        tests:
+          - not_null
+          - unique
+      - name: season_id
+        description: >
+          The season identifier string used as the durable business key
+          (e.g. '2024-25').
+        tests:
+          - not_null
+          - unique
+      - name: season_label
+        description: >
+          A descriptive display label for the season in the format
+          '2024-2025 Season'.
+        tests:
+          - not_null
+          - unique
+      - name: is_current
+        description: >
+          Boolean flag indicating whether this is the current active season.
+          Exactly one row should have this set to true.
+        tests:
+          - not_null
+
+  - name: dim_gameweek
+    description: >
+      Dimensional table containing one row per gameweek per season. Provides
+      the gameweek surrogate key and a foreign key to dim_season.
+    columns:
+      - name: gameweek_sk
+        description: Surrogate key uniquely identifying each gameweek-season combination.
+        tests:
+          - not_null
+          - unique
+      - name: season
+        description: Season identifier (e.g. '2024-2025').
+        tests:
+          - not_null
+      - name: gameweek_number
+        description: >
+          Gameweek number within the season, typically ranging from 1 to 38
+          for a standard Premier League season.
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                max_value: 38
+      - name: is_current
+        description: >
+          Boolean flag indicating whether this is the current gameweek in the
+          current season. Exactly one row across the entire table should be true.
+        tests:
+          - not_null
+      - name: season_sk
+        description: Foreign key referencing dim_season.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_season')
+                field: season_sk
+
+  - name: dim_team
+    description: >
+      Dimensional table containing one row per team per season they appeared
+      in the Premier League. Handles promotion and relegation — a relegated
+      team has no row for seasons they were outside the league. Includes
+      FPL strength ratings which are season-specific.
+    columns:
+      - name: team_sk
+        description: Surrogate key uniquely identifying each team-season combination.
+        tests:
+          - not_null
+          - unique
+      - name: team_id
+        description: >
+          FPL team identifier. Durable business key that persists across seasons.
+        tests:
+          - not_null
+      - name: team_code
+        description: >
+          FPL team code. Durable business key used in player-team relationships.
+        tests:
+          - not_null
+      - name: name
+        description: Full team name (e.g. 'Arsenal', 'Manchester City').
+        tests:
+          - not_null
+      - name: short_name
+        description: >
+          Three-letter abbreviated team name used in the FPL interface
+          (e.g. 'ARS', 'MCI').
+        tests:
+          - not_null
+      - name: pulse_id
+        description: Pulse ID used by the Premier League platform.
+      - name: fotmob_name
+        description: >
+          Team name as it appears in FotMob, used for cross-referencing
+          with FotMob-sourced data.
+      - name: season
+        description: Season identifier for this record (e.g. '2024-25').
+        tests:
+          - not_null
+      - name: is_current
+        description: >
+          Boolean flag indicating whether this team-season record is from
+          the current season.
+        tests:
+          - not_null
+      - name: strength
+        description: FPL overall strength rating for this team in this season.
+      - name: strength_overall_home
+        description: FPL overall strength rating when playing at home.
+      - name: strength_overall_away
+        description: FPL overall strength rating when playing away.
+      - name: strength_attack_home
+        description: FPL attacking strength rating at home.
+      - name: strength_attack_away
+        description: FPL attacking strength rating away.
+      - name: strength_defence_home
+        description: FPL defensive strength rating at home.
+      - name: strength_defence_away
+        description: FPL defensive strength rating away.
+      - name: season_sk
+        description: Foreign key referencing dim_season.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_season')
+                field: season_sk
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - team_id
+              - season
+
+  - name: dim_player
+    description: >
+      Dimensional table implementing SCD Type 2 for player team and position
+      history. Each row represents a continuous period where a player held
+      the same team and position. A player who transfers mid-season has
+      multiple rows for that season with different team_sk values and
+      non-overlapping gameweek effective ranges.
+    columns:
+      - name: player_sk
+        description: >
+          Surrogate key uniquely identifying each player-team-position period.
+          Generated from player_id, season, and gameweek_effective_from.
+        tests:
+          - not_null
+          - unique
+      - name: player_id
+        description: >
+          Durable business key for the player, consistent across seasons.
+          Sourced from the FPL API player identifier.
+        tests:
+          - not_null
+      - name: first_name
+        description: Player's first name.
+        tests:
+          - not_null
+      - name: second_name
+        description: Player's surname.
+        tests:
+          - not_null
+      - name: display_name
+        description: >
+          The official FPL display name (web_name). The short name shown
+          in the FPL interface (e.g. 'Salah', 'Haaland').
+        tests:
+          - not_null
+      - name: position
+        description: >
+          The player's position as classified by FPL during this period.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Manager']
+      - name: team_code
+        description: >
+          FPL team code the player was assigned to during this period.
+          Retained as a business key for debugging and traceability.
+        tests:
+          - not_null
+      - name: season
+        description: Season identifier for this record (e.g. '2024-25').
+        tests:
+          - not_null
+      - name: gameweek_effective_from
+        description: >
+          The first gameweek (inclusive) in which this team/position
+          assignment was active.
+        tests:
+          - not_null
+      - name: gameweek_effective_to
+        description: >
+          The last gameweek (inclusive) in which this team/position
+          assignment was active.
+        tests:
+          - not_null
+      - name: is_current
+        description: >
+          Boolean flag indicating whether this is the player's most recent
+          (currently active) team/position assignment.
+        tests:
+          - not_null
+      - name: team_sk
+        description: >
+          Foreign key referencing dim_team for the team the player was
+          assigned to during this period.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_team')
+                field: team_sk
+      - name: season_sk
+        description: Foreign key referencing dim_season.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_season')
+                field: season_sk
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - player_id
+              - season
+              - gameweek_effective_from
+
+  - name: dim_match
+    description: >
+      Dimensional table containing one row per match. Describes match context
+      (when, who, where) without performance statistics. Includes foreign keys
+      to both the home and away team dimensions, the gameweek dimension, and
+      the season dimension. ELO ratings are match-specific snapshots retained here.
+    columns:
+      - name: match_sk
+        description: Surrogate key uniquely identifying each match.
+        tests:
+          - not_null
+          - unique
+      - name: match_id
+        description: >
+          Business key for the match from the source data.
+        tests:
+          - not_null
+          - unique
+      - name: gameweek
+        description: Gameweek number within the season.
+        tests:
+          - not_null
+      - name: season
+        description: Season identifier (e.g. '2024-25').
+        tests:
+          - not_null
+      - name: kickoff_time
+        description: Timestamp of the match kickoff.
+      - name: home_team
+        description: >
+          Home team identifier from the source data. Retained alongside
+          the surrogate key for traceability.
+        tests:
+          - not_null
+      - name: away_team
+        description: >
+          Away team identifier from the source data. Retained alongside
+          the surrogate key for traceability.
+        tests:
+          - not_null
+      - name: home_team_elo
+        description: Elo rating of the home team going into this match.
+      - name: away_team_elo
+        description: Elo rating of the away team going into this match.
+      - name: home_score
+        description: Goals scored by the home team.
+      - name: away_score
+        description: Goals scored by the away team.
+      - name: finished
+        description: Whether the match has concluded.
+      - name: match_url
+        description: URL to the match detail page on the source platform.
+      - name: fotmob_id
+        description: FotMob match identifier for cross-referencing.
+      - name: stats_processed
+        description: Whether match-level statistics have been processed.
+      - name: player_stats_processed
+        description: Whether player-level statistics have been processed.
+      - name: home_team_sk
+        description: Foreign key referencing dim_team for the home team.
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_team')
+                field: team_sk
+      - name: away_team_sk
+        description: Foreign key referencing dim_team for the away team.
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_team')
+                field: team_sk
+      - name: gameweek_sk
+        description: Foreign key referencing dim_gameweek.
+        tests:
+          - relationships:
+              arguments:
+                to: ref('dim_gameweek')
+                field: gameweek_sk
+      - name: season_sk
+        description: Foreign key referencing dim_season.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_season')
+                field: season_sk

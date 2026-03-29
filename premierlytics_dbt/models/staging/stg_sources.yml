@@ -1,0 +1,34 @@
+version: 2
+
+sources:
+  - name: premierlytics
+    schema: main
+    tables:
+      - name: matches_bronze
+        meta:
+          dagster:
+            asset_key: ["loaded_matches"]
+      - name: players_bronze
+        meta:
+          dagster:
+            asset_key: ["loaded_players"]
+      - name: playermatchstats_bronze
+        meta:
+          dagster:
+            asset_key: ["loaded_playermatchstats"]
+      - name: playerstats_bronze
+        meta:
+          dagster:
+            asset_key: ["loaded_playerstats"]
+      - name: fixtures_bronze
+        meta:
+          dagster:
+            asset_key: ["loaded_fixtures"]
+      - name: teams_bronze
+        meta:
+          dagster:
+            asset_key: ["loaded_teams"]
+      - name: player_gameweek_stats_bronze
+        meta:
+          dagster:
+            asset_key: ["loaded_player_gameweek_stats"]

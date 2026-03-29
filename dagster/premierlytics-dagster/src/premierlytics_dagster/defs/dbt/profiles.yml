@@ -1,0 +1,13 @@
+premierlytics_dbt:
+  outputs:
+    dev:
+      type: duckdb
+      path: /data/duckdb/premierlytics.duckdb
+      schema: main
+      threads: 1
+    prod:
+      type: duckdb
+      path: /data/duckdb/premierlytics.duckdb
+      schema: main
+      threads: 1
+  target: prod

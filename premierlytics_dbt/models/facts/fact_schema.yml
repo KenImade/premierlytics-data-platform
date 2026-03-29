@@ -1,0 +1,517 @@
+version: 2
+
+models:
+  - name: fact_match_team_performance
+    description: >
+      Fact table containing one row per team per match with all team-level
+      performance statistics. Sourced from int_match_team_unpivoted with
+      surrogate key foreign keys resolved from dimension tables. Each match
+      produces exactly two rows — one for each participating team.
+    columns:
+      - name: match_sk
+        description: Foreign key referencing dim_match.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_match')
+                field: match_sk
+      - name: team_sk
+        description: Foreign key referencing dim_team for the team this row represents.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_team')
+                field: team_sk
+      - name: gameweek_sk
+        description: Foreign key referencing dim_gameweek.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_gameweek')
+                field: gameweek_sk
+      - name: is_home
+        description: >
+          Degenerate dimension indicating whether this team was the home
+          team (true) or away team (false) in the match.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [true, false]
+      - name: score
+        description: Goals scored by this team in the match.
+      - name: opponent_score
+        description: Goals scored by the opposing team in the match.
+      - name: possession
+        description: Possession percentage for this team.
+      - name: expected_goals_xg
+        description: Total expected goals (xG) for this team.
+      - name: xg_open_play
+        description: Expected goals from open play situations.
+      - name: xg_set_play
+        description: Expected goals from set play situations.
+      - name: non_penalty_xg
+        description: Expected goals excluding penalties.
+      - name: xg_on_target_xgot
+        description: Expected goals on target (xGOT) for this team.
+      - name: total_shots
+        description: Total number of shots attempted.
+      - name: shots_on_target
+        description: Number of shots on target.
+      - name: shots_off_target
+        description: Number of shots off target.
+      - name: blocked_shots
+        description: Number of shots blocked by the opposition.
+      - name: shots_inside_box
+        description: Number of shots from inside the penalty area.
+      - name: shots_outside_box
+        description: Number of shots from outside the penalty area.
+      - name: big_chances
+        description: Number of big chances created.
+      - name: big_chances_missed
+        description: Number of big chances not converted.
+      - name: hit_woodwork
+        description: Number of times this team hit the woodwork.
+      - name: passes
+        description: Total passes attempted.
+      - name: accurate_passes
+        description: Number of accurate passes.
+      - name: accurate_passes_pct
+        description: Pass accuracy percentage.
+      - name: own_half
+        description: Passes completed in own half.
+      - name: opposition_half
+        description: Passes completed in opposition half.
+      - name: accurate_long_balls
+        description: Number of accurate long balls.
+      - name: accurate_crosses
+        description: Number of accurate crosses.
+      - name: accurate_crosses_pct
+        description: Cross accuracy percentage.
+      - name: corners
+        description: Number of corner kicks taken.
+      - name: throws
+        description: Number of throw-ins taken.
+      - name: fouls_committed
+        description: Number of fouls committed.
+      - name: touches_in_opposition_box
+        description: Touches inside the opposition penalty area.
+      - name: offsides
+        description: Number of offside calls against this team.
+      - name: yellow_cards
+        description: Number of yellow cards received.
+      - name: red_cards
+        description: Number of red cards received.
+      - name: tackles_won
+        description: Number of tackles won.
+      - name: tackles_won_pct
+        description: Tackle success percentage.
+      - name: interceptions
+        description: Number of interceptions.
+      - name: blocks
+        description: Number of blocks.
+      - name: clearances
+        description: Number of defensive clearances.
+      - name: keeper_saves
+        description: Goalkeeper saves.
+      - name: duels_won
+        description: Total duels won.
+      - name: ground_duels_won
+        description: Ground duels won.
+      - name: ground_duels_won_pct
+        description: Ground duel success percentage.
+      - name: aerial_duels_won
+        description: Aerial duels won.
+      - name: aerial_duels_won_pct
+        description: Aerial duel success percentage.
+      - name: successful_dribbles
+        description: Number of successful dribbles.
+      - name: successful_dribbles_pct
+        description: Dribble success percentage.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - match_sk
+              - team_sk
+
+  - name: fact_player_match_performance
+    description: >
+      Fact table containing one row per player per match with all player-level
+      performance statistics sourced from FotMob. Foreign keys are resolved
+      via SCD-aware joins to dim_player (matching on the player's effective
+      gameweek range) ensuring transferred players get the correct team
+      assignment for each match.
+    columns:
+      - name: player_sk
+        description: >
+          Foreign key referencing dim_player. Resolved via SCD Type 2 range
+          join to the player's active period at the time of the match.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_player')
+                field: player_sk
+      - name: match_sk
+        description: Foreign key referencing dim_match.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_match')
+                field: match_sk
+      - name: team_sk
+        description: >
+          Foreign key referencing dim_team. Inherited from dim_player's
+          team assignment during the match's gameweek.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_team')
+                field: team_sk
+      - name: minutes_played
+        description: Total minutes played in the match.
+      - name: goals
+        description: Goals scored.
+      - name: assists
+        description: Assists provided.
+      - name: xg
+        description: Expected goals.
+      - name: xa
+        description: Expected assists.
+      - name: xgot
+        description: Expected goals on target.
+      - name: total_shots
+        description: Total shots attempted.
+      - name: shots_on_target
+        description: Shots on target.
+      - name: big_chances_missed
+        description: Big chances missed.
+      - name: successful_dribbles
+        description: Successful dribbles completed.
+      - name: successful_dribbles_percent
+        description: Dribble success percentage.
+      - name: touches
+        description: Total touches.
+      - name: touches_opposition_box
+        description: Touches in the opposition penalty area.
+      - name: accurate_passes
+        description: Number of accurate passes.
+      - name: accurate_passes_percent
+        description: Pass accuracy percentage.
+      - name: chances_created
+        description: Chances created for teammates.
+      - name: final_third_passes
+        description: Passes into the final third.
+      - name: accurate_crosses
+        description: Accurate crosses delivered.
+      - name: accurate_crosses_percent
+        description: Cross accuracy percentage.
+      - name: accurate_long_balls
+        description: Accurate long balls played.
+      - name: accurate_long_balls_percent
+        description: Long ball accuracy percentage.
+      - name: tackles_won
+        description: Tackles won.
+      - name: tackles_won_percent
+        description: Tackle success percentage.
+      - name: tackles
+        description: Total tackles attempted.
+      - name: interceptions
+        description: Interceptions made.
+      - name: recoveries
+        description: Ball recoveries.
+      - name: blocks
+        description: Shots or passes blocked.
+      - name: clearances
+        description: Defensive clearances.
+      - name: headed_clearances
+        description: Headed clearances.
+      - name: dribbled_past
+        description: Times dribbled past by an opponent.
+      - name: duels_won
+        description: Total duels won.
+      - name: duels_lost
+        description: Total duels lost.
+      - name: aerial_duels_won
+        description: Aerial duels won.
+      - name: aerial_duels_won_percent
+        description: Aerial duel success percentage.
+      - name: ground_duels_won
+        description: Ground duels won.
+      - name: ground_duels_won_percent
+        description: Ground duel success percentage.
+      - name: saves
+        description: Goalkeeper saves.
+      - name: saves_inside_box
+        description: Saves from shots inside the box.
+      - name: goals_conceded
+        description: Goals conceded (goalkeeper-specific).
+      - name: team_goals_conceded
+        description: Total goals conceded by the player's team while on the pitch.
+      - name: xgot_faced
+        description: Expected goals on target faced (goalkeeper).
+      - name: goals_prevented
+        description: Goals prevented relative to xGOT faced (goalkeeper).
+      - name: sweeper_actions
+        description: Sweeper keeper actions outside the box.
+      - name: gk_accurate_passes
+        description: Accurate passes by the goalkeeper.
+      - name: gk_accurate_long_balls
+        description: Accurate long balls by the goalkeeper.
+      - name: high_claim
+        description: High claims made by the goalkeeper.
+      - name: defensive_contributions
+        description: Combined defensive actions score.
+      - name: fouls_committed
+        description: Fouls committed.
+      - name: was_fouled
+        description: Times fouled by an opponent.
+      - name: offsides
+        description: Offside calls against the player.
+      - name: penalties_scored
+        description: Penalties converted.
+      - name: penalties_missed
+        description: Penalties missed or saved.
+      - name: dispossessed
+        description: Times dispossessed.
+      - name: corners
+        description: Corners taken.
+      - name: top_speed
+        description: Top speed recorded during the match (km/h).
+      - name: distance_covered
+        description: Total distance covered (km).
+      - name: walking_distance
+        description: Distance covered while walking (km).
+      - name: running_distance
+        description: Distance covered while running (km).
+      - name: sprinting_distance
+        description: Distance covered while sprinting (km).
+      - name: number_of_sprints
+        description: Total number of sprints.
+      - name: start_min
+        description: Minute the player entered the match.
+      - name: finish_min
+        description: Minute the player exited the match.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - player_sk
+              - match_sk
+
+  - name: fact_player_gameweek_snapshot
+    description: >
+      Fact table containing one row per player per gameweek with FPL platform
+      meta-data including pricing, ownership, form, ICT index, expected points,
+      transfer activity, availability status, and set piece assignments. This
+      is FPL-specific data, not on-pitch performance — it complements
+      fact_player_match_performance. Sourced from stg_playerstats.
+    columns:
+      - name: player_sk
+        description: >
+          Foreign key referencing dim_player. Resolved via SCD Type 2 range
+          join to the player's active period at this gameweek.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_player')
+                field: player_sk
+      - name: gameweek_sk
+        description: Foreign key referencing dim_gameweek.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_gameweek')
+                field: gameweek_sk
+      - name: team_sk
+        description: >
+          Foreign key referencing dim_team. Inherited from dim_player's
+          team assignment at this gameweek.
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_team')
+                field: team_sk
+      - name: now_cost
+        description: Current price of the player in FPL (in tenths, e.g. 100 = 10.0m).
+      - name: now_cost_rank
+        description: Player's cost rank among all players.
+      - name: now_cost_rank_type
+        description: Player's cost rank within their position.
+      - name: cost_change_event
+        description: Price change for the current gameweek.
+      - name: cost_change_event_fall
+        description: Price fall for the current gameweek.
+      - name: cost_change_start
+        description: Total price change since the start of the season.
+      - name: cost_change_start_fall
+        description: Total price fall since the start of the season.
+      - name: selected_by_percent
+        description: Percentage of FPL managers who own this player.
+      - name: selected_rank
+        description: Ownership rank among all players.
+      - name: selected_rank_type
+        description: Ownership rank within their position.
+      - name: transfers_in
+        description: Cumulative transfers in for the season.
+      - name: transfers_in_event
+        description: Transfers in for this gameweek.
+      - name: transfers_out
+        description: Cumulative transfers out for the season.
+      - name: transfers_out_event
+        description: Transfers out for this gameweek.
+      - name: total_points
+        description: Cumulative FPL points for the season.
+      - name: event_points
+        description: FPL points scored in this gameweek.
+      - name: points_per_game
+        description: Average points per game played.
+      - name: points_per_game_rank
+        description: Points per game rank among all players.
+      - name: points_per_game_rank_type
+        description: Points per game rank within their position.
+      - name: form
+        description: FPL form rating (rolling average of recent points).
+      - name: form_rank
+        description: Form rank among all players.
+      - name: form_rank_type
+        description: Form rank within their position.
+      - name: value_form
+        description: Points per million (form-adjusted value metric).
+      - name: value_season
+        description: Points per million (season-adjusted value metric).
+      - name: ep_next
+        description: Expected points for the next gameweek.
+      - name: ep_this
+        description: Expected points for this gameweek.
+      - name: bonus
+        description: Cumulative bonus points for the season.
+      - name: bps
+        description: Cumulative bonus point system raw score.
+      - name: influence
+        description: FPL Influence index score.
+      - name: influence_rank
+        description: Influence rank among all players.
+      - name: influence_rank_type
+        description: Influence rank within their position.
+      - name: creativity
+        description: FPL Creativity index score.
+      - name: creativity_rank
+        description: Creativity rank among all players.
+      - name: creativity_rank_type
+        description: Creativity rank within their position.
+      - name: threat
+        description: FPL Threat index score.
+      - name: threat_rank
+        description: Threat rank among all players.
+      - name: threat_rank_type
+        description: Threat rank within their position.
+      - name: ict_index
+        description: Combined ICT (Influence + Creativity + Threat) index.
+      - name: ict_index_rank
+        description: ICT index rank among all players.
+      - name: ict_index_rank_type
+        description: ICT index rank within their position.
+      - name: dreamteam_count
+        description: Number of times selected in the FPL dream team this season.
+      - name: expected_goals
+        description: Cumulative expected goals for the season.
+      - name: expected_assists
+        description: Cumulative expected assists for the season.
+      - name: expected_goal_involvements
+        description: Cumulative expected goal involvements for the season.
+      - name: expected_goals_conceded
+        description: Cumulative expected goals conceded for the season.
+      - name: expected_goals_per_90
+        description: Expected goals per 90 minutes.
+      - name: expected_assists_per_90
+        description: Expected assists per 90 minutes.
+      - name: expected_goal_involvements_per_90
+        description: Expected goal involvements per 90 minutes.
+      - name: expected_goals_conceded_per_90
+        description: Expected goals conceded per 90 minutes.
+      - name: saves_per_90
+        description: Saves per 90 minutes.
+      - name: clean_sheets_per_90
+        description: Clean sheets per 90 minutes.
+      - name: goals_conceded_per_90
+        description: Goals conceded per 90 minutes.
+      - name: starts_per_90
+        description: Starts per 90 minutes played.
+      - name: defensive_contribution_per_90
+        description: Defensive contribution score per 90 minutes.
+      - name: status
+        description: Player availability status code (a, d, i, n, s, u).
+      - name: status_detailed
+        description: >
+          Human-readable availability status (Available, Doubtful, Injured,
+          Not Available, Suspended, Unavailable).
+      - name: news
+        description: Latest news about the player's availability.
+      - name: news_added
+        description: Timestamp when the news was added.
+      - name: chance_of_playing_next_round
+        description: Percentage chance of playing in the next gameweek.
+      - name: chance_of_playing_this_round
+        description: Percentage chance of playing in this gameweek.
+      - name: corners_and_indirect_freekicks_order
+        description: Player's order for corners and indirect free kicks.
+      - name: corners_and_indirect_freekicks_text
+        description: Description of corner and indirect free kick duties.
+      - name: direct_freekicks_order
+        description: Player's order for direct free kicks.
+      - name: direct_freekicks_text
+        description: Description of direct free kick duties.
+      - name: penalties_order
+        description: Player's order for penalty kicks.
+      - name: penalties_text
+        description: Description of penalty duties.
+      - name: set_piece_threat
+        description: FPL set piece threat rating.
+      - name: minutes
+        description: Cumulative minutes played this season.
+      - name: goals_scored
+        description: Cumulative goals scored this season.
+      - name: assists
+        description: Cumulative assists this season.
+      - name: clean_sheets
+        description: Cumulative clean sheets this season.
+      - name: goals_conceded
+        description: Cumulative goals conceded this season.
+      - name: own_goals
+        description: Own goals scored this season.
+      - name: penalties_saved
+        description: Penalties saved this season.
+      - name: penalties_missed
+        description: Penalties missed this season.
+      - name: yellow_cards
+        description: Yellow cards received this season.
+      - name: red_cards
+        description: Red cards received this season.
+      - name: saves
+        description: Cumulative saves this season.
+      - name: starts
+        description: Number of starts this season.
+      - name: defensive_contribution
+        description: Cumulative defensive contribution score this season.
+      - name: tackles
+        description: Cumulative tackles this season.
+      - name: clearances_blocks_interceptions
+        description: Combined clearances, blocks, and interceptions this season.
+      - name: recoveries
+        description: Cumulative ball recoveries this season.
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - player_sk
+              - gameweek_sk
