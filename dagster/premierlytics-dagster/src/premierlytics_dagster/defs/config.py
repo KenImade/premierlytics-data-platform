@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Type
 from .schemas.matches import MatchesV1, MatchesV2
 from .schemas.playermatchstats import PlayerMatchStatsV1, PlayerMatchStatsV2
@@ -14,11 +14,9 @@ BASE_URL = (
 
 
 class DatasetConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     url_template: str
     validation_schema: Type[BaseModel]
-
-    class Config:
-        arbitrary_types_allowed = True
 
     @property
     def is_per_gameweek(self) -> bool:

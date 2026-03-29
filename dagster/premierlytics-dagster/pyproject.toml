@@ -22,6 +22,7 @@ dev = [
     "dagster-dg-cli",
     "pytest>=9.0.2",
     "testcontainers[minio]>=4.14.2",
+    "pytest-env>=1.6.0",
 ]
 
 [build-system]
@@ -37,3 +38,9 @@ directory_type = "project"
 [tool.dg.project]
 root_module = "premierlytics_dagster"
 registry_modules = ["premierlytics_dagster.components.*"]
+
+[tool.pytest.ini_options]
+env = ["DBT_PROJECT_DIR=/tmp/dbt"]
+
+[tool.dagster]
+module_name = "premierlytics_dagster.definitions"
