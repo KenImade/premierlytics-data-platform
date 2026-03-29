@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from dagster import AssetExecutionContext
 from dagster_dbt import DbtCliResource, dbt_assets, DbtProject
@@ -5,9 +6,9 @@ from dagster_dbt import DbtCliResource, dbt_assets, DbtProject
 # Path to the dbt project inside the container
 DBT_PROJECT_DIR = Path("/opt/dagster/dbt")
 
-# Parse the dbt project (generates manifest at build time)
+
 dbt_project = DbtProject(
-    project_dir=DBT_PROJECT_DIR,
+    project_dir=os.environ.get("DBT_PROJECT_DIR", DBT_PROJECT_DIR),
     profiles_dir=Path(__file__).parent,  # profiles.yml lives next to this file
 )
 
