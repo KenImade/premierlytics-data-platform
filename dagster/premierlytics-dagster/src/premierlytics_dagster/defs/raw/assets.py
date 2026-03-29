@@ -1,19 +1,35 @@
 import dagster as dg
 import json
+import polars as pl
 
-from premierlytics_dagster.helpers.download_csv import download_csv
-from premierlytics_dagster.helpers.data_report import data_report
+from io import StringIO
+
+from premierlytics_dagster.helpers.download_csv import (
+    download_csv,
+    RetryConfig,
+    build_retry_policy,
+)
 from premierlytics_dagster.defs.resources import MinioResource
 from ..partitions import matches_partitions
 from ..config import get_dataset_config
 
 
-@dg.asset(partitions_def=matches_partitions, group_name="raw_data")
-def raw_matches(
-    context: dg.AssetExecutionContext,
-    minio: MinioResource,
-):
-    """Raw Matches CSV files"""
+@dg.asset(
+    partitions_def=matches_partitions,
+    group_name="raw_data",
+    retry_policy=build_retry_policy(RetryConfig()),
+)
+def raw_matches(context: dg.AssetExecutionContext, minio: MinioResource) -> None:
+    """
+    Ingests raw Premier League matches CSV data from the olbauday
+    FPL-Core-Insights GitHub repository and stores it in MinIO.
+
+    Partitioned by season and gameweek. Output lands at:
+        s3://<bucket>/raw/{season}/{gameweek}/matches.csv
+
+    Downstream assets should read directly from MinIO rather than
+    depending on this asset's return value.
+    """
 
     # Get gameweek and season
     partition: dg.MultiPartitionKey = context.partition_key  # type: ignore[assignment]
@@ -22,29 +38,38 @@ def raw_matches(
 
     data_cfg = get_dataset_config(season, "matches")
 
-    url = data_cfg["url_template"].format(season=season, gameweek=gameweek)
+    url_template = data_cfg.get("url_template")
+
+    if not url_template:
+        raise ValueError(
+            f"Missing 'url_template' in dataset config for season={season}, "
+            f"dataset='matches'"
+        )
+
+    url = url_template.format(season=season, gameweek=gameweek)
 
     context.log.info(
-        f"Downloading matches data for season={season}, gameweek={gameweek}"
+        "Downloading matches data for season=%s, gameweek=%s", season, gameweek
     )
     csv_text = download_csv(url)
 
-    report = data_report(csv_text)
-
-    key = f"raw/{season}/gameweek_{gameweek}/matches.csv"
-
+    key = f"raw/{season}/{gameweek}/matches.csv"
     minio.put_object(bucket=minio.bucket, key=key, data=csv_text)
 
-    context.log.info(f"Saved to MinIO: {minio.bucket}/{key}")
+    context.log.info("Saved to MinIO: %s/%s", minio.bucket, key)
+
+    df = pl.read_csv(StringIO(csv_text))
+    rows, columns = df.shape
+    columns_list = df.columns
 
     context.add_output_metadata(
         {
             "season": season,
             "gameweek": gameweek,
             "minio_path": f"{minio.bucket}/{key}",
-            "dataset_report": dg.MetadataValue.json(
-                json.loads(json.dumps(report, default=str))
-            ),
+            "row_count": dg.MetadataValue.int(rows),
+            "column_count": dg.MetadataValue.int(columns),
+            "columns": dg.MetadataValue.text(", ".join(columns_list)),
         }
     )
 

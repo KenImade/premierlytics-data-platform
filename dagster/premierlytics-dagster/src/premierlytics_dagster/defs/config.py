@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Type
+from typing import Type, Any
 from .schemas.matches import MatchesV1, MatchesV2
 from .schemas.playermatchstats import PlayerMatchStatsV1, PlayerMatchStatsV2
 from .schemas.players import PlayersV1
@@ -76,7 +76,7 @@ SEASON_CONFIG: dict[str, dict[str, dict[str, Type[BaseModel]]]] = {
 }
 
 
-def get_dataset_config(season: str, dataset_name: str) -> dict[str, dict]:
+def get_dataset_config(season: str, dataset_name: str) -> dict[str, dict[str, Any]]:
     if season not in SEASON_CONFIG:
         raise ValueError(
             f"No configuration found for season '{season}'. Known seasons: {list(SEASON_CONFIG.keys())}"

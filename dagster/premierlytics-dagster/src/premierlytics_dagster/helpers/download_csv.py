@@ -1,7 +1,7 @@
 import logging
 import httpx
 
-from dagster import Config, RetryPolicy
+from dagster import Config, RetryPolicy, Backoff, Jitter
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +25,8 @@ def build_retry_policy(config: RetryConfig) -> RetryPolicy:
     return RetryPolicy(
         max_retries=config.max_retries,
         delay=config.delay_seconds,
-        backoff="EXPONENTIAL",
-        jitter="FULL",
+        backoff=Backoff.EXPONENTIAL,
+        jitter=Jitter.FULL,
     )
 
 
