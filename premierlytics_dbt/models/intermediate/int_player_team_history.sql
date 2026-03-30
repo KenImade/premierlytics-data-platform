@@ -51,11 +51,8 @@ period_groups as (
 
 -- -- Step 3: Aggregate each group to get the effective date range
 periods as (
-    -- YOUR CODE HERE
-   select
+    select
         player_id,
-        -- For name/position/team: use any_value, first_value, or min/max
-        -- They're all the same within a group
         min(first_name) as first_name,
         min(second_name) as second_name,
         min(display_name) as display_name,
@@ -68,6 +65,28 @@ periods as (
     from period_groups
     group by player_id, season, period_group
 ),
+periods_adjusted as (
+    select
+        player_id,
+        first_name,
+        second_name,
+        display_name,
+        position,
+        team_code,
+        season,
+        gameweek_effective_from,
+        case
+            when row_number() over (
+                partition by player_id, season
+                order by gameweek_effective_from desc
+            ) = 1
+            then 38
+            else gameweek_effective_to
+        end as gameweek_effective_to,
+        period_group
+    from periods
+),
+
 final as (
     select
         player_id,
@@ -83,7 +102,7 @@ final as (
             partition by player_id
             order by season desc, gameweek_effective_from desc
         ) = 1 as is_current
-    from periods
+    from periods_adjusted
 )
 
 select * from final

@@ -16,8 +16,8 @@ home_side as (
 
         -- Team identity
         true as is_home,
-        home_team as team_name,
-        away_team as opponent_name,
+        home_team as team_code,
+        away_team as opponent_code,
         home_team_elo as team_elo,
         away_team_elo as opponent_elo,
 
@@ -85,8 +85,8 @@ away_side as (
 
         -- Team identity
         false as is_home,
-        away_team as team_name,
-        home_team as opponent_name,
+        away_team as team_code,
+        home_team as opponent_code,
         away_team_elo as team_elo,
         home_team_elo as opponent_elo,
 
