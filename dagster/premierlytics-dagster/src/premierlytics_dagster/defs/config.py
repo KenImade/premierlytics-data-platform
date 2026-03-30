@@ -15,8 +15,11 @@ BASE_URL = (
 
 class DatasetConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
     url_template: str
     validation_schema: Type[BaseModel]
+    add_gameweek_column: bool = False
+    rename_columns: dict[str, str] = {}
 
     @property
     def is_per_gameweek(self) -> bool:
@@ -33,6 +36,7 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
             url_template=BASE_URL
             + "{season}/playermatchstats/{gameweek}/playermatchstats.csv",
             validation_schema=PlayerMatchStatsV1,
+            add_gameweek_column=True,
         ),
         "players": DatasetConfig(
             url_template=BASE_URL + "{season}/players/players.csv",
@@ -41,6 +45,7 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
         "playerstats": DatasetConfig(
             url_template=BASE_URL + "{season}/playerstats/playerstats.csv",
             validation_schema=PlayerStatsV1,
+            rename_columns={"gw": "gameweek"},
         ),
         "teams": DatasetConfig(
             url_template=BASE_URL + "{season}/teams/teams.csv",
@@ -57,6 +62,7 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
             url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/playermatchstats.csv",
             validation_schema=PlayerMatchStatsV2,
+            add_gameweek_column=True,
         ),
         "players": DatasetConfig(
             url_template=BASE_URL
@@ -67,6 +73,7 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
             url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/playerstats.csv",
             validation_schema=PlayerStatsV2,
+            rename_columns={"gw": "gameweek"},
         ),
         "teams": DatasetConfig(
             url_template=BASE_URL
@@ -77,11 +84,13 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
             url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/player_gameweek_stats.csv",
             validation_schema=PlayerGameweekStatsV1,
+            add_gameweek_column=True,
         ),
         "fixtures": DatasetConfig(
             url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/fixtures.csv",
             validation_schema=FixturesV1,
+            add_gameweek_column=True,
         ),
     },
 }

@@ -5,6 +5,8 @@ from .defs.dbt.assets import dbt_project
 from .defs.raw.assets import build_raw_asset
 from .defs.transformation.assets import build_transformed_asset
 from .defs.transformation.checks import build_transformed_checks
+from .defs.loading.assets import build_loaded_asset
+from .defs.loading.checks import build_loaded_checks
 
 DATASETS = [
     "matches",
@@ -18,13 +20,15 @@ DATASETS = [
 
 raw_assets = [build_raw_asset(d) for d in DATASETS]
 transformed_assets = [build_transformed_asset(d) for d in DATASETS]
+loaded_assets = [build_loaded_asset(d) for d in DATASETS]
 
 all_checks = []
 for dataset in DATASETS:
     all_checks.extend(build_transformed_checks(dataset))
+    all_checks.extend(build_loaded_checks(dataset))
 
 defs = dg.Definitions(
-    assets=[*raw_assets, *transformed_assets],
+    assets=[*raw_assets, *transformed_assets, *loaded_assets],
     asset_checks=all_checks,
     resources={
         "minio": MinioResource(
