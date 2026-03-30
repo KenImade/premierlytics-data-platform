@@ -50,6 +50,7 @@ class TestBuildLoadedAsset:
             is_per_gameweek=True,
             add_gameweek_column=False,
             rename_columns={},
+            delete_keys=["season", "gameweek"],
         )
 
         asset_fn = build_loaded_asset("matches")
@@ -98,6 +99,7 @@ class TestBuildLoadedAsset:
             is_per_gameweek=True,
             add_gameweek_column=True,
             rename_columns={},
+            delete_keys=["season", "gameweek"],
         )
 
         asset_fn = build_loaded_asset("playermatchstats")
@@ -128,6 +130,7 @@ class TestBuildLoadedAsset:
             is_per_gameweek=True,
             add_gameweek_column=False,
             rename_columns={"gw": "gameweek"},
+            delete_keys=["season", "gameweek"],
         )
 
         asset_fn = build_loaded_asset("playerstats")
@@ -151,6 +154,7 @@ class TestBuildLoadedAsset:
             is_per_gameweek=True,
             add_gameweek_column=False,
             rename_columns={},
+            delete_keys=["season", "gameweek"],
         )
 
         asset_fn = build_loaded_asset("matches")

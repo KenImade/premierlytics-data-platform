@@ -40,7 +40,7 @@ root_module = "premierlytics_dagster"
 registry_modules = ["premierlytics_dagster.components.*"]
 
 [tool.pytest.ini_options]
-env = ["DBT_PROJECT_DIR=/tmp/dbt"]
+env = ["DBT_PROJECT_DIR=/tmp/dbt", "TESTCONTAINERS_RYUK_DISABLED=true"]
 
 [tool.dagster]
 module_name = "premierlytics_dagster.definitions"
