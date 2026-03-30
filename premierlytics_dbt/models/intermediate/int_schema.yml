@@ -14,15 +14,15 @@ models:
         description: Unique identifier for the match, sourced from the FPL/FotMob data.
         tests:
           - not_null
-      - name: team_name
+      - name: team_code
         description: >
-          The name of the team for this row. Derived from `home_team` or `away_team`
+          The code of the team for this row. Derived from `home_team` or `away_team`
           depending on the unpivot side.
         tests:
           - not_null
-      - name: opponent_name
+      - name: opponent_code
         description: >
-          The name of the opposing team. Inverse of `team_name` for the same match.
+          The code of the opposing team. Inverse of `team_code` for the same match.
         tests:
           - not_null
       - name: is_home
@@ -157,7 +157,7 @@ models:
           arguments:
             combination_of_columns:
               - match_id
-              - team_name
+              - team_code
 
   - name: int_player_team_history
     description: >

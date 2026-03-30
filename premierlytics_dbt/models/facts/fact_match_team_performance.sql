@@ -89,7 +89,7 @@ final as (
 
     from source
     left join teams
-        on source.team_name = teams.team_code
+        on source.team_code = teams.team_code
         and source.season = teams.season
     left join matches
         on source.match_id = matches.match_id

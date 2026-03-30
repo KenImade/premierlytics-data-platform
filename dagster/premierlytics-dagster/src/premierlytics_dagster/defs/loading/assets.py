@@ -2,441 +2,112 @@ import dagster as dg
 import io
 import polars as pl
 import datetime
-from minio.error import S3Error
 
 from ..partitions import matches_partitions
+from ..config import get_dataset_config
 from ..resources import MinioResource, DuckDBResource
-
 from premierlytics_dagster.helpers.sql import load_sql
 
 
-@dg.asset(
-    partitions_def=matches_partitions,
-    deps=["transformed_matches"],
-    group_name="loaded_data",
-    op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
-)
-def loaded_matches(
-    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
-):
-    partitions: dg.MultiPartitionKey = context.partition_key
-    season = partitions.keys_by_dimension["season"]
-    gameweek = partitions.keys_by_dimension["gameweek"]
+def build_loaded_asset(dataset_name: str):
+    @dg.asset(
+        name=f"loaded_{dataset_name}",
+        partitions_def=matches_partitions,
+        deps=[f"transformed_{dataset_name}"],
+        group_name="loaded_data",
+        op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
+        description=(
+            f"Loads transformed {dataset_name} parquet data from MinIO into "
+            f"DuckDB {dataset_name}_bronze table. Uses delete-then-insert "
+            f"to ensure idempotent loads. Runs sequentially to respect "
+            f"DuckDB's single-writer constraint."
+        ),
+    )
+    def _asset(
+        context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
+    ) -> None:
+        partition: dg.MultiPartitionKey = context.partition_key  # type: ignore[assignment]
+        season = partition.keys_by_dimension["season"]
+        gameweek = partition.keys_by_dimension["gameweek"]
 
-    transformed_path = f"transformed/{season}/gameweek_{gameweek}/matches.parquet"
-
-    try:
-        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            return dg.SkipReason(
-                f"No fixtures data found for {season} {gameweek}, skipping."
+        try:
+            data_cfg = get_dataset_config(season, dataset_name)
+        except ValueError:
+            context.log.info(
+                "No %s config for season %s, skipping", dataset_name, season
             )
-        raise
+            return
 
-    df = pl.read_parquet(io.BytesIO(parquet_bytes))
-
-    df = df.with_columns(
-        [
-            pl.lit(str(season)).alias("season"),
-            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
-        ]
-    )
-
-    with duckdb.connection() as conn:
-        conn.execute(load_sql("create_matches.sql", __file__))
-
-        conn.execute(
-            """
-            DELETE FROM matches_bronze
-            WHERE season = ? AND gameweek = ?
-        """,
-            [season, float(gameweek.replace("GW", ""))],
-        )
-
-        columns = ", ".join(df.columns)
-        conn.execute(
-            f"""INSERT INTO matches_bronze ({columns}) SELECT {columns} from df"""
-        )
-
-    context.log.info(f"Loaded matches data into DuckDB database {duckdb.db_path}")
-
-    context.add_output_metadata(
-        {
-            "season": season,
-            "gameweek": gameweek,
-            "rows_loaded": len(df),
-            "table": "matches_bronze",
-        }
-    )
-
-
-@dg.asset(
-    partitions_def=matches_partitions,
-    deps=["transformed_playermatchstats"],
-    group_name="loaded_data",
-    op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
-)
-def loaded_playermatchstats(
-    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
-):
-    partitions: dg.MultiPartitionKey = context.partition_key
-    season = partitions.keys_by_dimension["season"]
-    gameweek = partitions.keys_by_dimension["gameweek"]
-
-    transformed_path = (
-        f"transformed/{season}/gameweek_{gameweek}/playermatchstats.parquet"
-    )
-
-    try:
-        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            return dg.SkipReason(
-                f"No fixtures data found for {season} {gameweek}, skipping."
+        if not data_cfg.is_per_gameweek and gameweek != "GW1":
+            context.log.info(
+                "Skipping gameweek %s — %s is a single-file dataset for season %s",
+                gameweek,
+                dataset_name,
+                season,
             )
-        raise
+            return
 
-    # Load into DuckDB
-    df = pl.read_parquet(io.BytesIO(parquet_bytes))
+        transformed_path = f"transformed/{season}/{gameweek}/{dataset_name}.parquet"
+        parquet_bytes = minio.get_bytes(key=transformed_path)
+        df = pl.read_parquet(io.BytesIO(parquet_bytes))
 
-    # Add additional columns season, ingestion timestamp, etc.
-    df = df.with_columns(
-        [
-            pl.lit(str(season)).alias("season"),
-            pl.lit(int(gameweek.replace("GW", ""))).alias("gameweek"),
-            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
+        context.log.info("Retrieved %d rows from MinIO: %s", len(df), transformed_path)
+
+        # Apply column renames from config
+        if data_cfg.rename_columns:
+            df = df.rename(data_cfg.rename_columns)
+
+        # Add enrichment columns
+        gameweek_num = int(gameweek.replace("GW", ""))
+        enrichment = [
+            pl.lit(season).alias("season"),
+            pl.lit(datetime.datetime.now(datetime.timezone.utc)).alias("ingested_at"),
         ]
-    )
+        if data_cfg.add_gameweek_column:
+            enrichment.append(pl.lit(gameweek_num).alias("gameweek"))
 
-    with duckdb.connection() as conn:
-        conn.execute(load_sql("create_playermatchstats.sql", __file__))
+        df = df.with_columns(enrichment)
 
-        conn.execute(
-            """
-            DELETE FROM playermatchstats_bronze
-            WHERE season = ? AND gameweek = ?
-        """,
-            [season, float(gameweek.replace("GW", ""))],
-        )
+        table_name = f"{dataset_name}_bronze"
+        sql_file = f"create_{dataset_name}.sql"
 
-        columns = ", ".join(df.columns)
-        conn.execute(
-            f"INSERT INTO playermatchstats_bronze ({columns}) SELECT {columns} FROM df"
-        )
+        where_clause = " AND ".join(f"{key} = ?" for key in data_cfg.delete_keys)
+        delete_params = []
+        for key in data_cfg.delete_keys:
+            if key == "gameweek":
+                delete_params.append(gameweek_num)
+            elif key == "season":
+                delete_params.append(season)
 
-    context.add_output_metadata(
-        {
-            "season": season,
-            "gameweek": gameweek,
-            "rows_loaded": len(df),
-            "table": "playermatchstats_bronze",
-        }
-    )
-
-
-@dg.asset(
-    partitions_def=matches_partitions,
-    deps=["transformed_players"],
-    group_name="loaded_data",
-    op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
-)
-def loaded_players(
-    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
-):
-    partitions: dg.MultiPartitionKey = context.partition_key
-    season = partitions.keys_by_dimension["season"]
-    gameweek = partitions.keys_by_dimension["gameweek"]
-
-    transformed_path = f"transformed/{season}/gameweek_{gameweek}/players.parquet"
-
-    try:
-        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            return dg.SkipReason(
-                f"No fixtures data found for {season} {gameweek}, skipping."
+        with duckdb.connection() as conn:
+            conn.execute(load_sql(sql_file, __file__))
+            conn.execute(
+                f"DELETE FROM {table_name} WHERE {where_clause}",
+                delete_params,
             )
-        raise
-
-    df = pl.read_parquet(io.BytesIO(parquet_bytes))
-
-    df = df.with_columns(
-        [
-            pl.lit(str(season)).alias("season"),
-            pl.lit(int(gameweek.replace("GW", ""))).alias("gameweek"),
-            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
-        ]
-    )
-
-    with duckdb.connection() as conn:
-        conn.execute(load_sql("create_players.sql", __file__))
-
-        conn.execute(
-            """
-            DELETE FROM players_bronze
-            WHERE season = ? AND gameweek = ?
-        """,
-            [season, int(gameweek.replace("GW", ""))],
-        )
-
-        columns = ", ".join(df.columns)
-
-        conn.execute(f"INSERT INTO players_bronze ({columns}) SELECT {columns} FROM df")
-
-    context.add_output_metadata(
-        {
-            "season": season,
-            "gameweek": gameweek,
-            "rows_loaded": len(df),
-            "table": "players_bronze",
-        }
-    )
-
-
-@dg.asset(
-    partitions_def=matches_partitions,
-    deps=["transformed_playerstats"],
-    group_name="loaded_data",
-    op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
-)
-def loaded_playerstats(
-    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
-):
-    partitions: dg.MultiPartitionKey = context.partition_key
-    season = partitions.keys_by_dimension["season"]
-    gameweek = partitions.keys_by_dimension["gameweek"]
-
-    transformed_path = f"transformed/{season}/gameweek_{gameweek}/playerstats.parquet"
-
-    try:
-        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            return dg.SkipReason(
-                f"No fixtures data found for {season} {gameweek}, skipping."
+            columns = ", ".join(df.columns)
+            conn.execute(
+                f"INSERT INTO {table_name} ({columns}) SELECT {columns} FROM df"
             )
-        raise
 
-    df = pl.read_parquet(io.BytesIO(parquet_bytes))
+        context.log.info("Loaded %d rows into %s", len(df), table_name)
 
-    # rename gw to gameweek
-    df = df.rename({"gw": "gameweek"})
-
-    df = df.with_columns(
-        [
-            pl.lit(str(season)).alias("season"),
-            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
-        ]
-    )
-
-    with duckdb.connection() as conn:
-        conn.execute(load_sql("create_playerstats.sql", __file__))
-
-        conn.execute(
-            """
-            DELETE FROM playerstats_bronze
-            WHERE season = ? AND gameweek = ?
-        """,
-            [season, int(gameweek.replace("GW", ""))],
+        context.add_output_metadata(
+            {
+                "season": season,
+                "gameweek": gameweek,
+                "rows_loaded": dg.MetadataValue.int(len(df)),
+                "table": table_name,
+            }
         )
 
-        columns = ", ".join(df.columns)
-
-        conn.execute(
-            f"INSERT INTO playerstats_bronze ({columns}) SELECT {columns} FROM df"
-        )
-
-    context.add_output_metadata(
-        {
-            "season": season,
-            "gameweek": gameweek,
-            "rows_loaded": len(df),
-            "table": "playerstats_bronze",
-        }
-    )
+    return _asset
 
 
-@dg.asset(
-    partitions_def=matches_partitions,
-    deps=["transformed_teams"],
-    group_name="loaded_data",
-    op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
-)
-def loaded_teams(
-    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
-):
-    partitions: dg.MultiPartitionKey = context.partition_key
-    season = partitions.keys_by_dimension["season"]
-    gameweek = partitions.keys_by_dimension["gameweek"]
-
-    transformed_path = f"transformed/{season}/gameweek_{gameweek}/teams.parquet"
-
-    try:
-        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            return dg.SkipReason(
-                f"No fixtures data found for {season} {gameweek}, skipping."
-            )
-        raise
-
-    # Load into DuckDB
-    df = pl.read_parquet(io.BytesIO(parquet_bytes))
-
-    # Add additional columns season, ingestion timestamp, etc.
-    df = df.with_columns(
-        [
-            pl.lit(str(season)).alias("season"),
-            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
-        ]
-    )
-
-    with duckdb.connection() as conn:
-        conn.execute(load_sql("create_teams.sql", __file__))
-
-        conn.execute(
-            """
-            DELETE FROM teams_bronze
-            WHERE season = ?
-        """,
-            [season],
-        )
-
-        columns = ", ".join(df.columns)
-        conn.execute(f"INSERT INTO teams_bronze ({columns}) SELECT {columns} FROM df")
-
-    context.add_output_metadata(
-        {
-            "season": season,
-            "gameweek": gameweek,
-            "rows_loaded": len(df),
-            "table": "teams_bronze",
-        }
-    )
-
-
-@dg.asset(
-    partitions_def=matches_partitions,
-    deps=["transformed_player_gameweek_stats"],
-    group_name="loaded_data",
-    op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
-)
-def loaded_player_gameweek_stats(
-    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
-):
-    partitions: dg.MultiPartitionKey = context.partition_key
-    season = partitions.keys_by_dimension["season"]
-    gameweek = partitions.keys_by_dimension["gameweek"]
-
-    transformed_path = (
-        f"transformed/{season}/gameweek_{gameweek}/player_gameweek_stats.parquet"
-    )
-
-    try:
-        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            return dg.SkipReason(
-                f"No fixtures data found for {season} {gameweek}, skipping."
-            )
-        raise
-
-    # Load into DuckDB
-    df = pl.read_parquet(io.BytesIO(parquet_bytes))
-
-    # Add additional columns season, ingestion timestamp, etc.
-    df = df.with_columns(
-        [
-            pl.lit(str(season)).alias("season"),
-            pl.lit(int(gameweek.replace("GW", ""))).alias("gameweek"),
-            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
-        ]
-    )
-
-    with duckdb.connection() as conn:
-        conn.execute(load_sql("create_player_gameweek_stats.sql", __file__))
-
-        conn.execute(
-            """
-            DELETE FROM player_gameweek_stats_bronze
-            WHERE season = ? AND gameweek = ?
-        """,
-            [season, int(gameweek.replace("GW", ""))],
-        )
-
-        columns = ", ".join(df.columns)
-        conn.execute(
-            f"INSERT INTO player_gameweek_stats_bronze ({columns}) SELECT {columns} FROM df"
-        )
-
-    context.add_output_metadata(
-        {
-            "season": season,
-            "gameweek": gameweek,
-            "rows_loaded": len(df),
-            "table": "player_gameweek_stats_bronze",
-        }
-    )
-
-
-@dg.asset(
-    partitions_def=matches_partitions,
-    deps=["transformed_fixtures"],
-    group_name="loaded_data",
-    op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
-)
-def loaded_fixtures(
-    context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
-):
-    partitions: dg.MultiPartitionKey = context.partition_key
-    season = partitions.keys_by_dimension["season"]
-    gameweek = partitions.keys_by_dimension["gameweek"]
-
-    # Read parquet from MinIO
-    transformed_path = f"transformed/{season}/gameweek_{gameweek}/fixtures.parquet"
-
-    try:
-        parquet_bytes = minio.get_parquet(bucket=minio.bucket, key=transformed_path)
-    except S3Error as e:
-        if e.code == "NoSuchKey":
-            return dg.SkipReason(
-                f"No fixtures data found for {season} {gameweek}, skipping."
-            )
-        raise
-
-    # Load into DuckDB
-    df = pl.read_parquet(io.BytesIO(parquet_bytes))
-
-    # Add additional columns season, ingestion timestamp, etc.
-    df = df.with_columns(
-        [
-            pl.lit(str(season)).alias("season"),
-            pl.lit(datetime.datetime.utcnow()).alias("ingested_at"),
-        ]
-    )
-
-    with duckdb.connection() as conn:
-        conn.execute(load_sql("create_fixtures.sql", __file__))
-
-        conn.execute(
-            """
-            DELETE FROM fixtures_bronze
-            WHERE season = ? AND gameweek = ?
-        """,
-            [season, float(gameweek.replace("GW", ""))],
-        )
-
-        columns = ", ".join(df.columns)
-        conn.execute(
-            f"INSERT INTO fixtures_bronze ({columns}) SELECT {columns} FROM df"
-        )
-
-    context.add_output_metadata(
-        {
-            "season": season,
-            "gameweek": gameweek,
-            "rows_loaded": len(df),
-            "table": "fixtures_bronze",
-        }
-    )
+loaded_matches = build_loaded_asset("matches")
+loaded_playermatchstats = build_loaded_asset("playermatchstats")
+loaded_players = build_loaded_asset("players")
+loaded_playerstats = build_loaded_asset("playerstats")
+loaded_teams = build_loaded_asset("teams")
+loaded_player_gameweek_stats = build_loaded_asset("player_gameweek_stats")
+loaded_fixtures = build_loaded_asset("fixtures")

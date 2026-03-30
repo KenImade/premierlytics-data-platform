@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Type, Any
+from pydantic import BaseModel, ConfigDict
+from typing import Type
 from .schemas.matches import MatchesV1, MatchesV2
 from .schemas.playermatchstats import PlayerMatchStatsV1, PlayerMatchStatsV2
 from .schemas.players import PlayersV1
@@ -12,77 +12,107 @@ BASE_URL = (
     "https://raw.githubusercontent.com/olbauday/FPL-Core-Insights/refs/heads/main/data/"
 )
 
-SEASON_CONFIG: dict[str, dict[str, dict[str, Type[BaseModel]]]] = {
+
+class DatasetConfig(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    url_template: str
+    validation_schema: Type[BaseModel]
+    add_gameweek_column: bool = False
+    rename_columns: dict[str, str] = {}
+    delete_keys: list[str] = ["season", "gameweek"]
+
+    @property
+    def is_per_gameweek(self) -> bool:
+        return "{gameweek}" in self.url_template
+
+
+SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
     "2024-2025": {
-        "matches": {
-            "url_template": BASE_URL + "{season}/matches/{gameweek}/matches.csv",
-            "schema": MatchesV1,
-        },
-        "playermatchstats": {
-            "url_template": BASE_URL
+        "matches": DatasetConfig(
+            url_template=BASE_URL + "{season}/matches/{gameweek}/matches.csv",
+            validation_schema=MatchesV1,
+        ),
+        "playermatchstats": DatasetConfig(
+            url_template=BASE_URL
             + "{season}/playermatchstats/{gameweek}/playermatchstats.csv",
-            "schema": PlayerMatchStatsV1,
-        },
-        "players": {
-            "url_template": BASE_URL + "{season}/players/players.csv",
-            "schema": PlayersV1,
-        },
-        "playerstats": {
-            "url_template": BASE_URL + "{season}/playerstats/playerstats.csv",
-            "schema": PlayerStatsV1,
-        },
-        "teams": {
-            "url_template": BASE_URL + "{season}/teams/teams.csv",
-            "schema": TeamsV1,
-        },
+            validation_schema=PlayerMatchStatsV1,
+            add_gameweek_column=True,
+        ),
+        "players": DatasetConfig(
+            url_template=BASE_URL + "{season}/players/players.csv",
+            validation_schema=PlayersV1,
+            add_gameweek_column=True,
+        ),
+        "playerstats": DatasetConfig(
+            url_template=BASE_URL + "{season}/playerstats/playerstats.csv",
+            validation_schema=PlayerStatsV1,
+            rename_columns={"gw": "gameweek"},
+        ),
+        "teams": DatasetConfig(
+            url_template=BASE_URL + "{season}/teams/teams.csv",
+            validation_schema=TeamsV1,
+            delete_keys=["season"],
+        ),
     },
     "2025-2026": {
-        "matches": {
-            "url_template": BASE_URL
+        "matches": DatasetConfig(
+            url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/matches.csv",
-            "schema": MatchesV2,
-        },
-        "playermatchstats": {
-            "url_template": BASE_URL
+            validation_schema=MatchesV2,
+        ),
+        "playermatchstats": DatasetConfig(
+            url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/playermatchstats.csv",
-            "schema": PlayerMatchStatsV2,
-        },
-        "players": {
-            "url_template": BASE_URL
+            validation_schema=PlayerMatchStatsV2,
+            add_gameweek_column=True,
+        ),
+        "players": DatasetConfig(
+            url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/players.csv",
-            "schema": PlayersV1,
-        },
-        "playerstats": {
-            "url_template": BASE_URL
+            validation_schema=PlayersV1,
+            add_gameweek_column=True,
+        ),
+        "playerstats": DatasetConfig(
+            url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/playerstats.csv",
-            "schema": PlayerStatsV2,
-        },
-        "teams": {
-            "url_template": BASE_URL
+            validation_schema=PlayerStatsV2,
+            rename_columns={"gw": "gameweek"},
+        ),
+        "teams": DatasetConfig(
+            url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/teams.csv",
-            "schema": TeamsV2,
-        },
-        "player_gameweek_stats": {
-            "url_template": BASE_URL
+            validation_schema=TeamsV2,
+            delete_keys=["season"],
+        ),
+        "player_gameweek_stats": DatasetConfig(
+            url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/player_gameweek_stats.csv",
-            "schema": PlayerGameweekStatsV1,
-        },
-        "fixtures": {
-            "url_template": BASE_URL
+            validation_schema=PlayerGameweekStatsV1,
+            add_gameweek_column=True,
+        ),
+        "fixtures": DatasetConfig(
+            url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/fixtures.csv",
-            "schema": FixturesV1,
-        },
+            validation_schema=FixturesV1,
+            add_gameweek_column=True,
+        ),
     },
 }
 
 
-def get_dataset_config(season: str, dataset_name: str) -> dict[str, dict[str, Any]]:
+def get_dataset_config(season: str, dataset_name: str) -> DatasetConfig:
     if season not in SEASON_CONFIG:
         raise ValueError(
-            f"No configuration found for season '{season}'. Known seasons: {list(SEASON_CONFIG.keys())}"
+            f"No configuration found for season '{season}'. "
+            f"Known seasons: {list(SEASON_CONFIG.keys())}"
         )
 
-    if not SEASON_CONFIG[season][dataset_name]:
-        raise ValueError(f"No configuration found for dataset '{dataset_name}'.")
+    if dataset_name not in SEASON_CONFIG[season]:
+        raise ValueError(
+            f"No configuration found for dataset '{dataset_name}' "
+            f"in season '{season}'. "
+            f"Known datasets: {list(SEASON_CONFIG[season].keys())}"
+        )
 
     return SEASON_CONFIG[season][dataset_name]

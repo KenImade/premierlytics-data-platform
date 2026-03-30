@@ -1,27 +1,55 @@
 import polars as pl
-from pydantic import BaseModel, ValidationError
-from typing import Type, Tuple
+from pydantic import BaseModel
+from typing import Type, get_origin, get_args, Union
 
 
-def validate_csv(
+def validate_required_fields(
     df: pl.DataFrame, model: Type[BaseModel]
-) -> Tuple[pl.DataFrame, pl.DataFrame]:
-    """Parses and validates every row in the CSV against the Pydantic model.
-
-    Returns a validated csv file and report on the dataset
+) -> tuple[pl.DataFrame, pl.DataFrame]:
     """
-    valid_rows = []
-    invalid_rows = []
+    Validates that required (non-Optional) fields have no null values.
 
-    for row in df.to_dicts():
-        try:
-            model(**row)
-            valid_rows.append(row)
-        except ValidationError as e:
-            row["_validation_error"] = str(e)
-            invalid_rows.append(row)
+    Returns:
+        - valid_df: rows where all required fields are present
+        - invalid_df: rows with at least one null required field,
+          with a _validation_error column describing the issue
+    """
+    required_fields = []
+    for field_name, field_info in model.model_fields.items():
+        if field_name not in df.columns:
+            continue
 
-    valid_df = pl.DataFrame(valid_rows) if valid_rows else pl.DataFrame()
-    invalid_df = pl.DataFrame(invalid_rows) if invalid_rows else pl.DataFrame()
+        annotation = field_info.annotation
+        origin = get_origin(annotation)
+        is_optional = origin is Union and type(None) in get_args(annotation)
+
+        if not is_optional and field_info.is_required():
+            required_fields.append(field_name)
+
+    if not required_fields:
+        return df, pl.DataFrame(schema={**df.schema, "_validation_error": pl.Utf8})
+
+    null_mask = pl.lit(False)
+    for col in required_fields:
+        null_mask = null_mask | pl.col(col).is_null()
+
+    error_expr = (
+        pl.concat_str(
+            [
+                pl.when(pl.col(col).is_null())
+                .then(pl.lit(f"{col} is null"))
+                .otherwise(pl.lit(""))
+                for col in required_fields
+            ],
+            separator=", ",
+        )
+        .str.replace_all(r"^[, ]+|[, ]+$", "")
+        .str.replace_all(r", ,", ",")
+    )
+
+    invalid_df = df.filter(null_mask).with_columns(
+        error_expr.alias("_validation_error")
+    )
+    valid_df = df.filter(~null_mask)
 
     return valid_df, invalid_df
