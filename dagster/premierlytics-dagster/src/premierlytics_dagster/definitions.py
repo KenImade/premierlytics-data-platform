@@ -8,6 +8,8 @@ from .defs.transformation.checks import build_transformed_checks
 from .defs.loading.assets import build_loaded_asset
 from .defs.loading.checks import build_loaded_checks
 from .defs.dbt.assets import premierlytics_dbt_assets
+from .defs.schedules import fpl_refresh_schedule
+from .defs.jobs import fpl_pipeline_job
 
 DATASETS = [
     "matches",
@@ -31,6 +33,8 @@ for dataset in DATASETS:
 defs = dg.Definitions(
     assets=[*raw_assets, *transformed_assets, *loaded_assets, premierlytics_dbt_assets],
     asset_checks=all_checks,
+    schedules=[fpl_refresh_schedule],
+    jobs=[fpl_pipeline_job],
     resources={
         "minio": MinioResource(
             endpoint=dg.EnvVar("MINIO_ENDPOINT"),
