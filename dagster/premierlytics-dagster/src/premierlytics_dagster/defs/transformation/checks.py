@@ -1,7 +1,12 @@
 # defs/transformed/checks.py
 
 import dagster as dg
-from dagster import AssetCheckResult, AssetCheckSeverity, asset_check
+from dagster import (
+    AssetCheckResult,
+    AssetCheckSeverity,
+    asset_check,
+    AssetCheckExecutionContext,
+)
 from premierlytics_dagster.helpers.checks import check_not_empty, check_quarantine_rate
 
 
@@ -10,7 +15,7 @@ def build_transformed_checks(dataset_name: str):
         asset=f"transformed_{dataset_name}",
         name="not_empty",
     )
-    def _check_not_empty(context: dg.AssetExecutionContext):
+    def _check_not_empty(context: AssetCheckExecutionContext):
         event = context.instance.get_latest_materialization_event(
             dg.AssetKey(f"transformed_{dataset_name}")
         )
@@ -24,7 +29,7 @@ def build_transformed_checks(dataset_name: str):
         asset=f"transformed_{dataset_name}",
         name="quarantine_rate_acceptable",
     )
-    def _check_quarantine_rate(context: dg.AssetExecutionContext):
+    def _check_quarantine_rate(context: AssetCheckExecutionContext):
         event = context.instance.get_latest_materialization_event(
             dg.AssetKey(f"transformed_{dataset_name}")
         )
