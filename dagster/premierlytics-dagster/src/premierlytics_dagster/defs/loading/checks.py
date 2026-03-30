@@ -1,5 +1,4 @@
 # defs/loading/checks.py
-
 import dagster as dg
 from dagster import (
     AssetCheckResult,
@@ -8,6 +7,7 @@ from dagster import (
     asset_check,
 )
 from ..resources import DuckDBResource
+from ..config import get_dataset_config
 from premierlytics_dagster.helpers.checks import (
     check_rows_loaded,
     check_table_row_count_matches,
@@ -62,10 +62,24 @@ def build_loaded_checks(dataset_name: str):
         gameweek = metadata["gameweek"].value
         gameweek_num = int(gameweek.replace("GW", ""))
 
+        try:
+            data_cfg = get_dataset_config(season, dataset_name)
+            delete_keys = data_cfg.delete_keys
+        except ValueError:
+            delete_keys = ["season", "gameweek"]
+
+        where_clause = " AND ".join(f"{key} = ?" for key in delete_keys)
+        params = []
+        for key in delete_keys:
+            if key == "gameweek":
+                params.append(gameweek_num)
+            elif key == "season":
+                params.append(season)
+
         with duckdb.read_only_connection() as conn:
             result = conn.execute(
-                f"SELECT COUNT(*) FROM {table_name} WHERE season = ? AND gameweek = ?",
-                [season, gameweek_num],
+                f"SELECT COUNT(*) FROM {table_name} WHERE {where_clause}",
+                params,
             ).fetchone()
             table_count = result[0] if result else 0
 

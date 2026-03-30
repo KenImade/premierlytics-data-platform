@@ -20,6 +20,7 @@ class DatasetConfig(BaseModel):
     validation_schema: Type[BaseModel]
     add_gameweek_column: bool = False
     rename_columns: dict[str, str] = {}
+    delete_keys: list[str] = ["season", "gameweek"]
 
     @property
     def is_per_gameweek(self) -> bool:
@@ -41,6 +42,7 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
         "players": DatasetConfig(
             url_template=BASE_URL + "{season}/players/players.csv",
             validation_schema=PlayersV1,
+            add_gameweek_column=True,
         ),
         "playerstats": DatasetConfig(
             url_template=BASE_URL + "{season}/playerstats/playerstats.csv",
@@ -50,6 +52,7 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
         "teams": DatasetConfig(
             url_template=BASE_URL + "{season}/teams/teams.csv",
             validation_schema=TeamsV1,
+            delete_keys=["season"],
         ),
     },
     "2025-2026": {
@@ -68,6 +71,7 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
             url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/players.csv",
             validation_schema=PlayersV1,
+            add_gameweek_column=True,
         ),
         "playerstats": DatasetConfig(
             url_template=BASE_URL
@@ -79,6 +83,7 @@ SEASON_CONFIG: dict[str, dict[str, DatasetConfig]] = {
             url_template=BASE_URL
             + "{season}/By Tournament/Premier League/{gameweek}/teams.csv",
             validation_schema=TeamsV2,
+            delete_keys=["season"],
         ),
         "player_gameweek_stats": DatasetConfig(
             url_template=BASE_URL

@@ -71,11 +71,19 @@ def build_loaded_asset(dataset_name: str):
         table_name = f"{dataset_name}_bronze"
         sql_file = f"create_{dataset_name}.sql"
 
+        where_clause = " AND ".join(f"{key} = ?" for key in data_cfg.delete_keys)
+        delete_params = []
+        for key in data_cfg.delete_keys:
+            if key == "gameweek":
+                delete_params.append(gameweek_num)
+            elif key == "season":
+                delete_params.append(season)
+
         with duckdb.connection() as conn:
             conn.execute(load_sql(sql_file, __file__))
             conn.execute(
-                f"DELETE FROM {table_name} WHERE season = ? AND gameweek = ?",
-                [season, gameweek_num],
+                f"DELETE FROM {table_name} WHERE {where_clause}",
+                delete_params,
             )
             columns = ", ".join(df.columns)
             conn.execute(

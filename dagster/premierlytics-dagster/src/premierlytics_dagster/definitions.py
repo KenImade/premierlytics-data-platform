@@ -7,6 +7,7 @@ from .defs.transformation.assets import build_transformed_asset
 from .defs.transformation.checks import build_transformed_checks
 from .defs.loading.assets import build_loaded_asset
 from .defs.loading.checks import build_loaded_checks
+from .defs.dbt.assets import premierlytics_dbt_assets
 
 DATASETS = [
     "matches",
@@ -28,7 +29,7 @@ for dataset in DATASETS:
     all_checks.extend(build_loaded_checks(dataset))
 
 defs = dg.Definitions(
-    assets=[*raw_assets, *transformed_assets, *loaded_assets],
+    assets=[*raw_assets, *transformed_assets, *loaded_assets, premierlytics_dbt_assets],
     asset_checks=all_checks,
     resources={
         "minio": MinioResource(
