@@ -2,7 +2,7 @@ import dagster as dg
 import io
 import polars as pl
 
-from ..resources import MinioResource
+from ..resources import S3Resource
 from ..partitions import matches_partitions
 from ..config import get_dataset_config
 
@@ -12,10 +12,10 @@ from premierlytics_dagster.helpers.validation import validate_required_fields
 
 def build_transformed_asset(dataset_name: str):
 
-    def _write_parquet_to_minio(minio: MinioResource, key: str, df: pl.DataFrame):
+    def _write_parquet_to_s3(s3: S3Resource, key: str, df: pl.DataFrame):
         buffer = io.BytesIO()
         df.write_parquet(buffer)
-        minio.put_object(
+        s3.put_object(
             key=key, data=buffer.getvalue(), content_type="application/octet-stream"
         )
 
@@ -27,12 +27,12 @@ def build_transformed_asset(dataset_name: str):
         description=(
             f"Retrieves raw data from raw/{{season}}/{{gameweek}}/{dataset_name}.csv. "
             f"Transforms the raw data applying data cleaning and schema validation steps "
-            f"The transformed data is stored as parquet in MinIO at "
+            f"The transformed data is stored as parquet in S3 at "
             f"transformed/{{season}}/{{gameweek}}/{dataset_name}.parquet "
             f"Skips redundant gameweeks for single-file datasets."
         ),
     )
-    def _asset(context: dg.AssetExecutionContext, minio: MinioResource) -> None:
+    def _asset(context: dg.AssetExecutionContext, s3: S3Resource) -> None:
         partitions: dg.MultiPartitionKey = context.partition_key  # type: ignore[assignment]
         season = partitions.keys_by_dimension["season"]
         gameweek = partitions.keys_by_dimension["gameweek"]
@@ -57,10 +57,10 @@ def build_transformed_asset(dataset_name: str):
         raw_data_path = f"raw/{season}/{gameweek}/{dataset_name}.csv"
         dataset_schema = data_cfg.validation_schema
 
-        csv_data = minio.get_object(key=raw_data_path)
+        csv_data = s3.get_object(key=raw_data_path)
 
         context.log.info(
-            "Retrieved raw data from MinIO: %s/%s", minio.bucket, raw_data_path
+            "Retrieved raw data from S3: s3://%s/%s", s3.bucket, raw_data_path
         )
 
         cleaned_data = clean_csv(csv_data, dataset_schema)
@@ -72,16 +72,16 @@ def build_transformed_asset(dataset_name: str):
         quarantine_path = f"quarantine/{season}/{gameweek}/{dataset_name}.parquet"
 
         if not invalid_data.is_empty():
-            _write_parquet_to_minio(minio=minio, key=quarantine_path, df=invalid_data)
+            _write_parquet_to_s3(s3=s3, key=quarantine_path, df=invalid_data)
             context.log.warning(
                 "%d rows failed verification and were quarantined", len(invalid_data)
             )
 
         transformed_path = f"transformed/{season}/{gameweek}/{dataset_name}.parquet"
 
-        _write_parquet_to_minio(minio=minio, key=transformed_path, df=validated_data)
+        _write_parquet_to_s3(s3=s3, key=transformed_path, df=validated_data)
         context.log.info(
-            "Saved cleaned dataset to MinIO: %s/%s", minio.bucket, transformed_path
+            "Saved cleaned dataset to S3: s3://%s/%s", s3.bucket, transformed_path
         )
 
         # Display metadata
@@ -89,7 +89,7 @@ def build_transformed_asset(dataset_name: str):
             {
                 "season": season,
                 "gameweek": gameweek,
-                "minio_path": f"{minio.bucket}/{transformed_path}",
+                "s3_path": f"s3://{s3.bucket}/{transformed_path}",
                 "row_count": dg.MetadataValue.int(len(validated_data)),
                 "quarantined_rows": dg.MetadataValue.int(len(invalid_data)),
                 "quarantined_path": (

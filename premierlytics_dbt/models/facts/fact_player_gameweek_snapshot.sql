@@ -1,5 +1,18 @@
+{{
+    config(
+        materialized='incremental',
+        unique_key=['player_sk', 'gameweek_sk'],
+        incremental_strategy='delete+insert'
+    )
+}}
+
 with source as (
     select * from {{ ref('stg_playerstats') }}
+    {% if is_incremental() %}
+    where (season, gameweek) not in (
+        select distinct season, gameweek from {{ this }}
+    )
+    {% endif %}
 ),
 
 players as (
@@ -12,6 +25,10 @@ gameweeks as (
 
 final as (
     select
+        -- Partition columns
+        source.season,
+        source.gameweek,
+
         -- Foreign keys
         players.player_sk,
         gameweeks.gameweek_sk,

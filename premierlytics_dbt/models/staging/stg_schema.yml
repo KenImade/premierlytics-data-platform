@@ -1,0 +1,120 @@
+version: 2
+
+models:
+  - name: stg_matches
+    description: Cleaned match-level data from matches_bronze. One row per match.
+    columns:
+      - name: match_id
+        description: Unique identifier for the match.
+        tests:
+          - not_null
+          - unique
+      - name: season
+        tests:
+          - not_null
+      - name: gameweek
+        tests:
+          - not_null
+
+  - name: stg_players
+    description: >
+      Cleaned player dimension data from players_bronze. Deduplicated on
+      (player_id, season, gameweek) using QUALIFY. Position 'Unknown' mapped
+      to 'Manager'.
+    columns:
+      - name: player_id
+        description: Unique identifier for the player.
+        tests:
+          - not_null
+      - name: season
+        tests:
+          - not_null
+      - name: gameweek
+        tests:
+          - not_null
+      - name: position
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward', 'Manager']
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - player_id
+            - season
+            - gameweek
+
+  - name: stg_teams
+    description: Cleaned team dimension data from teams_bronze. Deduplicated on (code, id, season).
+    columns:
+      - name: id
+        description: Team identifier.
+        tests:
+          - not_null
+      - name: season
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - id
+            - season
+
+  - name: stg_playermatchstats
+    description: Cleaned match-level player performance stats from playermatchstats_bronze.
+    columns:
+      - name: player_id
+        description: Player identifier.
+        tests:
+          - not_null
+      - name: match_id
+        description: Match identifier.
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - player_id
+            - match_id
+
+  - name: stg_playerstats
+    description: >
+      Cleaned FPL player stats from playerstats_bronze. Deduplicated on
+      (id, season, gameweek) using QUALIFY.
+    columns:
+      - name: id
+        description: Player identifier.
+        tests:
+          - not_null
+      - name: season
+        tests:
+          - not_null
+      - name: gameweek
+        tests:
+          - not_null
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - id
+            - season
+            - gameweek
+
+  - name: stg_fixtures
+    description: Cleaned fixture data from fixtures_bronze.
+    columns:
+      - name: season
+        tests:
+          - not_null
+      - name: gameweek
+        tests:
+          - not_null
+
+  - name: stg_player_gameweek_stats
+    description: Cleaned FPL player gameweek-level stats from player_gameweek_stats_bronze.
+    columns:
+      - name: season
+        tests:
+          - not_null
+      - name: gameweek
+        tests:
+          - not_null

@@ -3,6 +3,10 @@ version: 2
 sources:
   - name: premierlytics
     schema: main
+    loaded_at_field: ingested_at
+    freshness:
+      warn_after: {count: 30, period: hour}
+      error_after: {count: 48, period: hour}
     tables:
       - name: matches_bronze
         meta:
@@ -25,6 +29,9 @@ sources:
           dagster:
             asset_key: ["loaded_fixtures"]
       - name: teams_bronze
+        # teams is a single-file dataset — only loaded once per season, not per gameweek
+        loaded_at_field: ingested_at
+        freshness: null
         meta:
           dagster:
             asset_key: ["loaded_teams"]

@@ -1,3 +1,11 @@
+{{
+    config(
+        materialized='incremental',
+        unique_key=['player_sk', 'match_sk'],
+        incremental_strategy='delete+insert'
+    )
+}}
+
 with source as (
     select * from {{ ref('stg_playermatchstats') }}
 ),
@@ -12,6 +20,10 @@ players as (
 
 final as (
     select
+        -- Partition columns
+        matches.season,
+        matches.gameweek,
+
         -- Foreign keys
         players.player_sk,
         matches.match_sk,
@@ -103,6 +115,12 @@ final as (
         and matches.season = players.season
         and matches.gameweek >= players.gameweek_effective_from
         and matches.gameweek <= players.gameweek_effective_to
+
+    {% if is_incremental() %}
+    where (matches.season, matches.gameweek) not in (
+        select distinct season, gameweek from {{ this }}
+    )
+    {% endif %}
 )
 
 select * from final

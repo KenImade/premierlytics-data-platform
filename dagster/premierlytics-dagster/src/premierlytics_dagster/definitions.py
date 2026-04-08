@@ -1,6 +1,6 @@
 import dagster as dg
 from dagster_dbt import DbtCliResource
-from .defs.resources import MinioResource, DuckDBResource
+from .defs.resources import S3Resource, DuckDBResource
 from .defs.dbt.assets import dbt_project
 from .defs.raw.assets import build_raw_asset
 from .defs.transformation.assets import build_transformed_asset
@@ -9,7 +9,7 @@ from .defs.loading.assets import build_loaded_asset
 from .defs.loading.checks import build_loaded_checks
 from .defs.dbt.assets import premierlytics_dbt_assets
 from .defs.schedules import fpl_refresh_schedule
-from .defs.jobs import fpl_pipeline_job
+from .defs.jobs import fpl_pipeline_job, fpl_backfill_job, fpl_dbt_job
 
 DATASETS = [
     "matches",
@@ -34,14 +34,12 @@ defs = dg.Definitions(
     assets=[*raw_assets, *transformed_assets, *loaded_assets, premierlytics_dbt_assets],
     asset_checks=all_checks,
     schedules=[fpl_refresh_schedule],
-    jobs=[fpl_pipeline_job],
+    jobs=[fpl_pipeline_job, fpl_backfill_job, fpl_dbt_job],
     resources={
-        "minio": MinioResource(
-            endpoint=dg.EnvVar("MINIO_ENDPOINT"),
-            access_key=dg.EnvVar("MINIO_ACCESS_KEY"),
-            secret_key=dg.EnvVar("MINIO_SECRET_KEY"),
-            bucket=dg.EnvVar("MINIO_BUCKET_NAME"),
-            secure=False,
+        "s3": S3Resource(
+            bucket=dg.EnvVar("S3_BUCKET_NAME"),
+            region=dg.EnvVar("AWS_REGION"),
+            endpoint_url=dg.EnvVar("MINIO_ENDPOINT"),
         ),
         "duckdb": DuckDBResource(),
         "dbt": DbtCliResource(
