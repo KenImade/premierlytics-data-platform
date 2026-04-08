@@ -14,3 +14,11 @@ build-code:
 
 copy-data:
 	docker cp dagster_user_code:/data/duckdb/premierlytics.duckdb ~/Projects/premierlytics-data-platform/data/premierlytics.duckdb
+
+invoke-aws-lambda:
+	aws lambda invoke \
+  --function-name premierlytics-start-pipeline \
+  --payload '{}' \
+  --region eu-west-1 \
+  --profile premierlytics \
+  response.json
