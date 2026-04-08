@@ -8,7 +8,7 @@ from premierlytics_dagster.helpers.download_csv import (
     RetryConfig,
     build_retry_policy,
 )
-from premierlytics_dagster.defs.resources import MinioResource
+from premierlytics_dagster.defs.resources import S3Resource
 from ..partitions import matches_partitions
 from ..config import get_dataset_config
 
@@ -22,12 +22,12 @@ def build_raw_asset(dataset_name: str):
         description=(
             f"Ingests raw Premier League {dataset_name} CSV data from the "
             f"olbauday FPL-Core-Insights GitHub repository and stores it in "
-            f"MinIO at raw/{{season}}/{{gameweek}}/{dataset_name}.csv. "
+            f"S3 at raw/{{season}}/{{gameweek}}/{dataset_name}.csv. "
             f"Skips seasons where the dataset is not configured and skips "
             f"redundant gameweeks for single-file datasets."
         ),
     )
-    def _asset(context: dg.AssetExecutionContext, minio: MinioResource) -> None:
+    def _asset(context: dg.AssetExecutionContext, s3: S3Resource) -> None:
         partition: dg.MultiPartitionKey = context.partition_key  # type: ignore[assignment]
         season = partition.keys_by_dimension["season"]
         gameweek = partition.keys_by_dimension["gameweek"]
@@ -61,9 +61,9 @@ def build_raw_asset(dataset_name: str):
         csv_text = download_csv(url)
 
         key = f"raw/{season}/{gameweek}/{dataset_name}.csv"
-        minio.put_object(key=key, data=csv_text)
+        s3.put_object(key=key, data=csv_text)
 
-        context.log.info("Saved to MinIO: %s/%s", minio.bucket, key)
+        context.log.info("Saved to S3: s3://%s/%s", s3.bucket, key)
 
         df = pl.read_csv(StringIO(csv_text))
         rows, columns = df.shape
@@ -72,7 +72,7 @@ def build_raw_asset(dataset_name: str):
             {
                 "season": season,
                 "gameweek": gameweek,
-                "minio_path": f"{minio.bucket}/{key}",
+                "s3_path": f"s3://{s3.bucket}/{key}",
                 "row_count": dg.MetadataValue.int(rows),
                 "column_count": dg.MetadataValue.int(columns),
                 "columns": dg.MetadataValue.text(", ".join(df.columns)),

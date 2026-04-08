@@ -5,7 +5,7 @@ import datetime
 
 from ..partitions import matches_partitions
 from ..config import get_dataset_config
-from ..resources import MinioResource, DuckDBResource
+from ..resources import S3Resource, DuckDBResource
 from premierlytics_dagster.helpers.sql import load_sql
 
 
@@ -17,14 +17,14 @@ def build_loaded_asset(dataset_name: str):
         group_name="loaded_data",
         op_tags={"dagster/concurrency_key": "duckdb", "dagster/max_concurrent": 1},
         description=(
-            f"Loads transformed {dataset_name} parquet data from MinIO into "
+            f"Loads transformed {dataset_name} parquet data from S3 into "
             f"DuckDB {dataset_name}_bronze table. Uses delete-then-insert "
             f"to ensure idempotent loads. Runs sequentially to respect "
             f"DuckDB's single-writer constraint."
         ),
     )
     def _asset(
-        context: dg.AssetExecutionContext, minio: MinioResource, duckdb: DuckDBResource
+        context: dg.AssetExecutionContext, s3: S3Resource, duckdb: DuckDBResource
     ) -> None:
         partition: dg.MultiPartitionKey = context.partition_key  # type: ignore[assignment]
         season = partition.keys_by_dimension["season"]
@@ -48,10 +48,10 @@ def build_loaded_asset(dataset_name: str):
             return
 
         transformed_path = f"transformed/{season}/{gameweek}/{dataset_name}.parquet"
-        parquet_bytes = minio.get_bytes(key=transformed_path)
+        parquet_bytes = s3.get_bytes(key=transformed_path)
         df = pl.read_parquet(io.BytesIO(parquet_bytes))
 
-        context.log.info("Retrieved %d rows from MinIO: %s", len(df), transformed_path)
+        context.log.info("Retrieved %d rows from S3: %s", len(df), transformed_path)
 
         # Apply column renames from config
         if data_cfg.rename_columns:
