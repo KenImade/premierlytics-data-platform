@@ -56,7 +56,6 @@ services:
     env_file:
       - ../.env.dev
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - dagster_io:/tmp/io_manager_storage
       - dagster_storage:/opt/dagster/storage
       - dagster_compute_logs:/opt/dagster/compute_logs
@@ -67,7 +66,7 @@ services:
         condition: service_healthy
       dagster_user_code:
         condition: service_healthy
-  
+
   dagster_daemon:
     build:
       context: ..
@@ -80,7 +79,6 @@ services:
     env_file:
       - ../.env.dev
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - dagster_io:/tmp/io_manager_storage
       - dagster_storage:/opt/dagster/storage
       - dagster_compute_logs:/opt/dagster/compute_logs
@@ -127,19 +125,6 @@ services:
       mc mb --ignore-existing maestro/premierlytics-dev-bucket;
       exit 0;
       "
-  cloudbeaver:
-    image: dbeaver/cloudbeaver:latest
-    container_name: cloudbeaver
-    ports:
-      - "8978:8978"
-    volumes:
-      - duckdb_data:/data/duckdb
-      - cloudbeaver_data:/opt/cloudbeaver/workspace
-    networks:
-      - premierlytics_nw
-    depends_on:
-      - duckdb_init
-      - dagster_user_code
   
   duckdb_init:
     image: python:3.11-slim
@@ -163,5 +148,3 @@ volumes:
   dagster_storage:
   dagster_compute_logs:
   duckdb_data:
-  metabase_data:
-  cloudbeaver_data:

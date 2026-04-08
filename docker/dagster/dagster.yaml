@@ -1,3 +1,6 @@
+concurrency:
+  default_op_concurrency_limit: 1
+
 local_artifact_storage:
   module: dagster.core.storage.root
   class: LocalArtifactStorage

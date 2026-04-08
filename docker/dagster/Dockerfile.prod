@@ -1,5 +1,4 @@
 FROM python:3.13-slim-trixie
-
 COPY --from=ghcr.io/astral-sh/uv:0.10.7 /uv /uvx /bin/
 
 ENV PYTHONUNBUFFERED=1
@@ -11,11 +10,11 @@ ENV PATH="/opt/dagster/app/.venv/bin:$PATH"
 # Install dependencies first (cached if pyproject.toml/uv.lock unchanged)
 COPY dagster/premierlytics-dagster/pyproject.toml /opt/dagster/app/pyproject.toml
 COPY dagster/premierlytics-dagster/uv.lock /opt/dagster/app/uv.lock
-RUN uv sync --locked --no-install-project
+RUN uv sync --locked --no-dev --no-install-project
 
-# Copy source and install project (including dev deps for local testing)
+# Copy source and install project
 COPY dagster/premierlytics-dagster/src /opt/dagster/app/src
-RUN uv sync --locked
+RUN uv sync --locked --no-dev
 
 # Copy and prepare dbt project
 COPY premierlytics_dbt /opt/dagster/dbt
