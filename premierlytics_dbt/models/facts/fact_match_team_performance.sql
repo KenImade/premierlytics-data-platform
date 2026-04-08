@@ -1,5 +1,18 @@
+{{
+    config(
+        materialized='incremental',
+        unique_key=['match_sk', 'team_sk'],
+        incremental_strategy='delete+insert'
+    )
+}}
+
 with source as (
     select * from {{ ref('int_match_team_unpivoted') }}
+    {% if is_incremental() %}
+    where (season, gameweek) not in (
+        select distinct season, gameweek from {{ this }}
+    )
+    {% endif %}
 ),
 
 teams as (
@@ -16,6 +29,10 @@ gameweeks as (
 
 final as (
     select
+        -- Partition columns
+        source.season,
+        source.gameweek,
+
         -- Foreign keys
         matches.match_sk,
         teams.team_sk,
